@@ -1,0 +1,48 @@
+{
+    "meta": {
+        "label": "Objects Detection",
+        "description": "Detect objects in images. Obtain bounding boxes as json or drawn or the original images.",
+        "icon": "icon-screenshot",
+        "iconColor": "orange"
+    },
+    "kind": "PYTHON",
+    "selectableFromFolder": "input-folder",
+    "inputRoles": [
+        {
+            "name": "input-folder",
+            "label": "Input Folder",
+            "arity": "UNARY",
+            "required": true,
+            "acceptsDataset": false,
+            "acceptsManagedFolder": true
+        }
+    ],
+    "outputRoles": [
+        {
+            "name": "output-dataset",
+            "label": "Output Dataset",
+            "description": "(Optional) Dataset containing the data returned by the Rekognition API",
+            "arity": "UNARY",
+            "required": false,
+            "acceptsDataset": true
+        },
+        {
+            "name": "output-folder",
+            "label": "Output Folder",
+            "description": "(Optional) Folder containing the images with bounding boxes drawn",
+            "arity": "UNARY",
+            "required": false,
+            "acceptsDataset": false,
+            "acceptsManagedFolder": true
+        }
+    ],
+    "params": [
+        {
+            "name": "connectionInfo",
+            "label": "AWS Connection",
+            "type": "PRESET",
+            "parameterSetId" : "amazon-rekognition-connection-info",
+            "mandatory" : true
+        }
+    ]
+}

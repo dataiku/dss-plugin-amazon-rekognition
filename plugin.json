@@ -1,0 +1,13 @@
+{
+    "id": "amazon-rekognition",
+    "version": "1.0.0",
+    "meta": {
+        "label": "Amazon Rekognition",
+        "description": "Use AWS to process images (object detection). No training required.",
+        "author": "Dataiku",
+        "icon": "icon-cloud",
+        "licenseInfo": "Apache Software License",
+        "url": "https://www.dataiku.com/dss/plugins/info/amazon-rekognition.html",
+        "tags": ["AWS", "Cloud", "Images"]
+    }
+}
