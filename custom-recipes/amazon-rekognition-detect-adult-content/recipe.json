@@ -1,8 +1,8 @@
 {
     "meta": {
-        "label": "Objects Detection",
-        "description": "Detect objects in images. Obtain bounding boxes as json or drawn or the original images.",
-        "icon": "icon-screenshot",
+        "label": "Adult Content Detection",
+        "description": "Detect explicit, racy or gory images.",
+        "icon": "icon-exclamation-sign",
         "iconColor": "orange"
     },
     "kind": "PYTHON",
@@ -25,15 +25,6 @@
             "arity": "UNARY",
             "required": false,
             "acceptsDataset": true
-        },
-        {
-            "name": "output-folder",
-            "label": "Output Folder",
-            "description": "Images with bounding boxes drawn",
-            "arity": "UNARY",
-            "required": false,
-            "acceptsDataset": false,
-            "acceptsManagedFolder": true
         }
     ],
     "params": [
@@ -46,7 +37,7 @@
         },
         {
             "name": "should_output_raw_results",
-            "label": "Output Raw Response?",
+            "label": "Output Raw Response",
             "type": "BOOLEAN"
         }
     ]
