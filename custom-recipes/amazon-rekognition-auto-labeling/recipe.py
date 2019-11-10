@@ -10,8 +10,7 @@ from bbox import draw_bounding_boxes
 # SETUP
 #==============================================================================
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='aws-machine-learning plugin %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='[rekognition plugin] %(levelname)s - %(message)s')
 
 connection_info = get_recipe_config().get('connectionInfo', {})
 should_output_raw_results = get_recipe_config().get('should_output_raw_results')
@@ -36,8 +35,8 @@ output_schema = [
 if should_output_raw_results:
     output_schema.append({"name": "raw_results", "type": "string"})
 output_dataset.write_schema(output_schema)
-writer = output_dataset.get_writer()
 
+writer = output_dataset.get_writer()
 for filepath in os.listdir(input_folder_path):
     if supported_image_format(filepath):
         with open(os.path.join(input_folder_path, filepath), "rb") as image_file:
@@ -49,5 +48,4 @@ for filepath in os.listdir(input_folder_path):
         row = {}
     row["file_path"] = filepath
     writer.write_row_dict(row)
-
 writer.close()

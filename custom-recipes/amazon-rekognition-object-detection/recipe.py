@@ -10,8 +10,7 @@ from bbox import draw_bounding_boxes
 # SETUP
 #==============================================================================
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='aws-machine-learning plugin %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='[rekognition plugin] %(levelname)s - %(message)s')
 
 connection_info = get_recipe_config().get('connectionInfo', {})
 should_output_raw_results = get_recipe_config().get('should_output_raw_results')

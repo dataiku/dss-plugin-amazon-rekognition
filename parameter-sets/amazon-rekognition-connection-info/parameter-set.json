@@ -11,21 +11,21 @@
         {
             "name": "accessKey",
             "label": "AWS Access key",
-            "description": "If empty, uses AWS credentials from the environment (IAM role, ~/.aws/credentials or AWS_ACCESS_KEY_ID environment variable)",
+            "description": "If empty, uses AWS credentials from the environment (IAM role, ~/.aws/credentials or AWS_ACCESS_KEY_ID environment variable)", // noqa
             "type": "STRING",
             "mandatory": false
         },
         {
             "name": "secretKey",
             "label": "AWS Secret key",
-            "description": "If empty, uses AWS credentials from the environment (IAM role, ~/.aws/credentials or AWS_SECRET_ACCESS_KEY environment variable)",
-            "type": "STRING",
+            "description": "If empty, uses AWS credentials from the environment (IAM role, ~/.aws/credentials or AWS_SECRET_ACCESS_KEY environment variable)", // noqa
+            "type": "PASSWORD",
             "mandatory": false
         },
         {
             "name": "region",
             "label": "AWS Region",
-            "description": "If empty, uses AWS region from the environment (~/.aws/config or AWS_DEFAULT_REGION environment variable)",
+            "description": "If empty, uses AWS region from the environment (~/.aws/config or AWS_DEFAULT_REGION environment variable)", // noqa
             "type": "STRING",
             "mandatory": false
         }
