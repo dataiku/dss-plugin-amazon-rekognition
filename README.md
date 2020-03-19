@@ -1,4 +1,4 @@
-# Amazon Recognition Plugin
+# Amazon Rekognition Plugin
 
 This Dataiku DSS plugin provides several tools to interact with [Amazon Rekognition](https://aws.amazon.com/rekognition/), the Computer Vision API.
 
