@@ -35,6 +35,17 @@ class ErrorHandlingEnum(Enum):
 # CLASS AND FUNCTION DEFINITION
 # ==============================================================================
 
+def generate_image_path_df(folder):
+    partition = ""
+    if folder.read_partitions is not None:
+        partition = folder.read_partitions[0]
+    image_path_list = [
+        p for p in folder.list_paths_in_partition(partition) 
+        if supported_image_format(p)
+    ]
+    output_df = pd.DataFrame({"image_path": image_path_list})
+    return output_df
+
 
 def generate_unique(name: AnyStr, existing_names: List, prefix: AnyStr = COLUMN_PREFIX) -> AnyStr:
     """
