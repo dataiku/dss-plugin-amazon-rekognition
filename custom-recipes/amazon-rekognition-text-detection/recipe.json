@@ -1,9 +1,8 @@
 {
     "meta": {
-        "label": "Image auto labeling",
-        "description": "Assign content labels to images",
-        "icon": "icon-tags",
-        "iconColor": "orange"
+        "label": "Text Detection",
+        "description": "Detect objects in images. Obtain bounding boxes as json or drawn or the original images.",
+        "icon": "icon-screenshot"
     },
     "kind": "PYTHON",
     "selectableFromFolder": "input_folder",
@@ -25,6 +24,15 @@
             "arity": "UNARY",
             "required": false,
             "acceptsDataset": true
+        },
+        {
+            "name": "output-folder",
+            "label": "Output Folder",
+            "description": "Images with bounding boxes drawn",
+            "arity": "UNARY",
+            "required": false,
+            "acceptsDataset": false,
+            "acceptsManagedFolder": true
         }
     ],
     "params": [
@@ -37,7 +45,7 @@
         },
         {
             "name": "should_output_raw_results",
-            "label": "Output Raw Response",
+            "label": "Output Raw Response?",
             "type": "BOOLEAN"
         }
     ]
