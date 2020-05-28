@@ -1,9 +1,9 @@
 {
     "meta": {
-        "label": "Object Detection & Labeling",
-        "description": "Detect objects in images to obtain labels and draw bounding boxes",
+        "label": "Unsafe Content Moderation",
+        "description": "Detect unsafe content (nudity, violence, etc.) in images",
         "icon": "icon-amazon-rekognition icon-cloud",
-        "displayOrderRank": 1
+        "displayOrderRank": 3
     },
     "kind": "PYTHON",
     "selectableFromFolder": "input_folder",
@@ -22,19 +22,10 @@
         {
             "name": "output_dataset",
             "label": "Output dataset",
-            "description": "Dataset with object labels for each image",
+            "description": "Dataset with moderation labels for each image",
             "arity": "UNARY",
             "required": true,
             "acceptsDataset": true
-        },
-        {
-            "name": "output_folder",
-            "label": "Output folder",
-            "description": "Folder with object bounding boxes drawn on each image",
-            "arity": "UNARY",
-            "required": false,
-            "acceptsDataset": false,
-            "acceptsManagedFolder": true
         }
     ],
     "params": [
@@ -51,16 +42,6 @@
             "mandatory": true
         },
         {
-            "name": "num_objects",
-            "label": "Number of objects",
-            "description": "Maximum number of objects to detect in the image",
-            "type": "INT",
-            "mandatory": true,
-            "defaultValue": 10,
-            "minI": 1,
-            "maxI": 1000
-        },
-        {
             "name": "separator_advanced",
             "label": "Advanced",
             "type": "SEPARATOR"
@@ -70,17 +51,6 @@
             "label": "Expert mode",
             "type": "BOOLEAN",
             "defaultValue": false
-        },
-        {
-            "name": "minimum_score",
-            "label": "Minimum score",
-            "description": "Minimum confidence score (from 0 to 1) for the object to be detected",
-            "visibilityCondition": "model.expert == true",
-            "type": "DOUBLE",
-            "mandatory": true,
-            "defaultValue": 0.55,
-            "minD": 0,
-            "maxD": 1
         },
         {
             "name": "error_handling",

@@ -1,4 +1,3 @@
-  
 # Public variable to be set by the user in the Makefile
 TARGET_DSS_VERSION=7.0
 

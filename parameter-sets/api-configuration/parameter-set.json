@@ -39,7 +39,7 @@
             "name": "separator_api_quota",
             "label": "API quota",
             "type": "SEPARATOR",
-            "description": "Throttling to stay within the quota defined by AWS: https://docs.aws.amazon.com/comprehend/latest/dg/guidelines-and-limits.html"
+            "description": "Throttling to stay within the quota defined by AWS: https://docs.aws.amazon.com/general/latest/gr/rekognition_region.html#limits_rekognition"
         },
         {
             "name": "api_quota_period",
@@ -56,7 +56,7 @@
             "description": "Maximum number of requests per period for one DSS activity. Reduce for concurrent activities.",
             "type": "INT",
             "mandatory": true,
-            "defaultValue": 25,
+            "defaultValue": 50,
             "minI": 1
         },
         {

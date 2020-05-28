@@ -13,6 +13,7 @@ from collections import OrderedDict, namedtuple
 # CONSTANT DEFINITION
 # ==============================================================================
 
+COLUMN_PREFIX = "api"
 API_COLUMN_NAMES_DESCRIPTION_DICT = OrderedDict(
     [
         ("response", "Raw response from the API in JSON format"),
@@ -21,12 +22,6 @@ API_COLUMN_NAMES_DESCRIPTION_DICT = OrderedDict(
         ("error_raw", "Raw error from the API"),
     ]
 )
-COLUMN_PREFIX = "api"
-
-
-# ==============================================================================
-# CLASS AND FUNCTION DEFINITION
-# ==============================================================================
 
 ApiColumnNameTuple = namedtuple("ApiColumnNameTuple", API_COLUMN_NAMES_DESCRIPTION_DICT.keys())
 
@@ -34,6 +29,11 @@ ApiColumnNameTuple = namedtuple("ApiColumnNameTuple", API_COLUMN_NAMES_DESCRIPTI
 class ErrorHandlingEnum(Enum):
     LOG = "Log"
     FAIL = "Fail"
+
+
+# ==============================================================================
+# CLASS AND FUNCTION DEFINITION
+# ==============================================================================
 
 
 def generate_unique(name: AnyStr, existing_names: List, prefix: AnyStr = COLUMN_PREFIX) -> AnyStr:
@@ -82,16 +82,6 @@ def safe_json_loads(
     return output
 
 
-def validate_column_input(column_name: AnyStr, column_list: List[AnyStr]) -> None:
-    """
-    Validate that user input for column parameter is valid.
-    """
-    if column_name is None or len(column_name) == 0:
-        raise ValueError("You must specify a valid column name.")
-    if column_name not in column_list:
-        raise ValueError("Column '{}' is not present in the input dataset.".format(column_name))
-
-
 def move_api_columns_to_end(
     df: pd.DataFrame, api_column_names: NamedTuple, error_handling: ErrorHandlingEnum = ErrorHandlingEnum.LOG
 ) -> pd.DataFrame:
@@ -111,13 +101,16 @@ def move_api_columns_to_end(
 
 
 def set_column_description(
-    input_dataset: dataiku.Dataset, output_dataset: dataiku.Dataset, column_description_dict: Dict,
+    output_dataset: dataiku.Dataset, column_description_dict: Dict, input_dataset: dataiku.Dataset = None,
 ) -> None:
     """
     Set column descriptions of the output dataset based on a dictionary of column descriptions
-    and retains the column descriptions from the input dataset if the column name matches
+    and retains the column descriptions from the input dataset (optional) if the column name matches.
     """
-    input_dataset_schema = input_dataset.read_schema()
+    if input_dataset is None:
+        input_dataset_schema = []
+    else:
+        input_dataset_schema = input_dataset.read_schema()
     output_dataset_schema = output_dataset.read_schema()
     input_columns_names = [col["name"] for col in input_dataset_schema]
     for output_col_info in output_dataset_schema:
