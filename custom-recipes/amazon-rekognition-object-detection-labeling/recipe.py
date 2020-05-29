@@ -20,6 +20,10 @@ from amazon_rekognition_api_formatting import ObjectDetectionLabelingAPIFormatte
 
 input_folder_names = get_input_names_for_role("input_folder")
 input_folder = dataiku.Folder(input_folder_names[0])
+input_folder_is_s3 = input_folder.get_info().get("type", "") == "S3"
+input_folder_access_info = input_folder.get_info().get("accessInfo", {})
+input_folder_bucket = input_folder_access_info.get("bucket")
+input_folder_root_path = str(input_folder_access_info.get("root", ""))[1:]
 
 output_dataset_names = get_output_names_for_role("output_dataset")  # mandatory output
 output_dataset = dataiku.Dataset(output_dataset_names[0])
@@ -57,8 +61,11 @@ input_df = pd.DataFrame(image_path_list, columns=[IMAGE_PATH_COLUMN])
 @limits(calls=api_quota_rate_limit, period=api_quota_period)
 def call_api_object_detection(row: Dict, num_objects: int, minimum_score: int) -> AnyStr:
     image_path = row.get(IMAGE_PATH_COLUMN)
-    with input_folder.get_download_stream(image_path) as stream:
-        image_request = {"Bytes": stream.read()}
+    if input_folder_is_s3:
+        image_request = {"S3Object": {"Bucket": input_folder_bucket, "Name": input_folder_root_path + image_path}}
+    else:
+        with input_folder.get_download_stream(image_path) as stream:
+            image_request = {"Bytes": stream.read()}
     response = client.detect_labels(Image=image_request, MaxLabels=num_objects, MinConfidence=minimum_score)
     return json.dumps(response)
 
