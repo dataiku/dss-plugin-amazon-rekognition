@@ -13,6 +13,7 @@ from collections import OrderedDict, namedtuple
 # CONSTANT DEFINITION
 # ==============================================================================
 
+IMAGE_PATH_COLUMN = "image_path"
 COLUMN_PREFIX = "api"
 API_COLUMN_NAMES_DESCRIPTION_DICT = OrderedDict(
     [
@@ -35,16 +36,21 @@ class ErrorHandlingEnum(Enum):
 # CLASS AND FUNCTION DEFINITION
 # ==============================================================================
 
-def generate_image_path_df(folder):
+
+def generate_path_list(folder: dataiku.Folder):
     partition = ""
     if folder.read_partitions is not None:
         partition = folder.read_partitions[0]
-    image_path_list = [
-        p for p in folder.list_paths_in_partition(partition) 
-        if supported_image_format(p)
-    ]
-    output_df = pd.DataFrame({"image_path": image_path_list})
-    return output_df
+    path_list = folder.list_paths_in_partition(partition)
+    return path_list
+
+
+def path_to_bytes(folder: dataiku.Folder):
+    partition = ""
+    if folder.read_partitions is not None:
+        partition = folder.read_partitions[0]
+    path_list = folder.list_paths_in_partition(partition)
+    return path_list
 
 
 def generate_unique(name: AnyStr, existing_names: List, prefix: AnyStr = COLUMN_PREFIX) -> AnyStr:

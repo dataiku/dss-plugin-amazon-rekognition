@@ -84,27 +84,42 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
     def __init__(
         self,
         input_df: pd.DataFrame,
-        column_prefix: AnyStr = "lang_detect_api",
+        num_objects: int,
+        column_prefix: AnyStr = "object_api",
         error_handling: ErrorHandlingEnum = ErrorHandlingEnum.LOG,
     ):
         super().__init__(input_df, column_prefix, error_handling)
-        self.language_code_column = generate_unique("language_code", input_df.keys(), self.column_prefix)
-        self.language_score_column = generate_unique("language_score", input_df.keys(), self.column_prefix)
+        self.num_objects = num_objects
+        self.label_list_column = generate_unique("label_list", input_df.keys(), column_prefix)
+        self.label_name_columns = [
+            generate_unique("label_" + str(n + 1) + "_name", input_df.keys(), column_prefix) for n in range(num_objects)
+        ]
+        self.label_score_columns = [
+            generate_unique("label_" + str(n + 1) + "_score", input_df.keys(), column_prefix)
+            for n in range(num_objects)
+        ]
         self._compute_column_description()
 
     def _compute_column_description(self):
-        self.column_description_dict[self.language_code_column] = "Language code from the API in ISO 639 format"
-        self.column_description_dict[self.language_score_column] = "Confidence score of the API from 0 to 1"
+        self.column_description_dict[self.label_list_column] = "List of object labels from the API"
+        for n in range(self.num_objects):
+            label_column = self.label_name_columns[n]
+            score_column = self.label_score_columns[n]
+            self.column_description_dict[label_column] = "Object label {} extracted by the API".format(n + 1)
+            self.column_description_dict[score_column] = "Confidence score in label {} from 0 to 1".format(n + 1)
 
     def format_row(self, row: Dict) -> Dict:
         raw_response = row[self.api_column_names.response]
         response = safe_json_loads(raw_response, self.error_handling)
-        row[self.language_code_column] = ""
-        row[self.language_score_column] = None
-        languages = response.get("Languages", [])
-        if len(languages) != 0:
-            row[self.language_code_column] = languages[0].get("LanguageCode", "")
-            row[self.language_score_column] = languages[0].get("Score", None)
+        labels = sorted(response.get("Labels", []), key=lambda x: x.get("Confidence"), reverse=True)
+        row[self.label_list_column] = [l.get("Name") for l in labels]
+        for n in range(self.num_objects):
+            if len(labels) > n:
+                row[self.label_name_columns[n]] = labels[n].get("Name", "")
+                row[self.label_score_columns[n]] = labels[n].get("Confidence", "")
+            else:
+                row[self.label_name_columns[n]] = ""
+                row[self.label_score_columns[n]] = None
         return row
 
 

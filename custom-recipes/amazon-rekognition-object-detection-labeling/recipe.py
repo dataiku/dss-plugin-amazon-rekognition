@@ -6,16 +6,27 @@ from retry import retry
 
 import dataiku
 from dataiku.customrecipe import get_recipe_config, get_input_names_for_role, get_output_names_for_role
+import pandas as pd
 
-from amazon_rekognition_api_client import get_client
-from plugin_io_utils import ErrorHandlingEnum, set_column_description
+from amazon_rekognition_api_client import API_EXCEPTIONS, get_client, supported_image_format
+from plugin_io_utils import IMAGE_PATH_COLUMN, ErrorHandlingEnum, generate_path_list, set_column_description
 from api_parallelizer import api_parallelizer
-from amazon_rekognition_api_formatting import NamedEntityRecognitionAPIFormatter
+from amazon_rekognition_api_formatting import ObjectDetectionLabelingAPIFormatter
 
 
 # ==============================================================================
 # SETUP
 # ==============================================================================
+
+input_folder_names = get_input_names_for_role("input_folder")
+input_folder = dataiku.Folder(input_folder_names[0])
+
+output_dataset_names = get_output_names_for_role("output_dataset")  # mandatory output
+output_dataset = dataiku.Dataset(output_dataset_names[0])
+output_folder_names = get_output_names_for_role("output_folder")
+output_folder = None  # optional output
+if len(output_folder_names) != 0:
+    output_folder = dataiku.Folder(output_folder_names[0])
 
 recipe_config = get_recipe_config()
 api_configuration_preset = recipe_config.get("api_configuration_preset")
@@ -25,56 +36,48 @@ parallel_workers = api_configuration_preset.get("parallel_workers")
 num_objects = int(recipe_config.get("num_objects", 1))
 if num_objects < 1:
     raise ValueError("Number of objects must be greater than 1")
-minimum_score = float(recipe_config.get("minimum_score", 0))
-if minimum_score < 0 or minimum_score > 1:
+minimum_score = int(recipe_config.get("minimum_score", 0)) * 100
+if minimum_score < 0 or minimum_score > 100:
     raise ValueError("Minimum confidence score must be between 0 and 1")
 error_handling = ErrorHandlingEnum[recipe_config.get("error_handling")]
 
 client = get_client(api_configuration_preset)
 column_prefix = "object_api"
 
-input_df = input_dataset.get_dataframe()
-
 
 # ==============================================================================
 # RUN
 # ==============================================================================
 
+image_path_list = [p for p in generate_path_list(input_folder) if supported_image_format(p)]
+input_df = pd.DataFrame(image_path_list, columns=[IMAGE_PATH_COLUMN])
+
 
 @retry((RateLimitException, OSError), delay=api_quota_period, tries=5)
 @limits(calls=api_quota_rate_limit, period=api_quota_period)
-def call_api_object_detection(row: Dict, num_objects: int, minimum_score: float) -> AnyStr:
-    text = row[text_column]
-    if not isinstance(text, str) or str(text).strip() == "":
-        return ""
-    responses = client.detect_entities_v2(Text=text)
-    return json.dumps(responses)
+def call_api_object_detection(row: Dict, num_objects: int, minimum_score: int) -> AnyStr:
+    image_path = row.get(IMAGE_PATH_COLUMN)
+    with input_folder.get_download_stream(image_path) as stream:
+        image_request = {"Bytes": stream.read()}
+    response = client.detect_labels(Image=image_request, MaxLabels=num_objects, MinConfidence=minimum_score)
+    return json.dumps(response)
 
 
 df = api_parallelizer(
     input_df=input_df,
-    api_call_function=call_api_named_entity_recognition,
+    api_call_function=call_api_object_detection,
     api_exceptions=API_EXCEPTIONS,
     column_prefix=column_prefix,
     parallel_workers=parallel_workers,
     error_handling=error_handling,
-    text_column=text_column,
-    text_language=text_language,
-    entity_sentiment=entity_sentiment,
+    num_objects=num_objects,
+    minimum_score=minimum_score,
 )
 
-api_formatter = NamedEntityRecognitionAPIFormatter(
-    input_df=input_df,
-    column_prefix=column_prefix,
-    entity_types=entity_types,
-    minimum_score=minimum_score,
-    error_handling=error_handling,
+api_formatter = ObjectDetectionLabelingAPIFormatter(
+    input_df=input_df, num_objects=num_objects, column_prefix=column_prefix, error_handling=error_handling
 )
 output_df = api_formatter.format_df(df)
 
 output_dataset.write_with_schema(output_df)
-set_column_description(
-    input_dataset=input_dataset,
-    output_dataset=output_dataset,
-    column_description_dict=api_formatter.column_description_dict,
-)
+set_column_description(output_dataset=output_dataset, column_description_dict=api_formatter.column_description_dict)

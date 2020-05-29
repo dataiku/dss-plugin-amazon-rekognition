@@ -29,7 +29,7 @@
         },
         {
             "name": "output_folder",
-            "label": "Output folder",
+            "label": "Output folder (optional)",
             "description": "Folder with object bounding boxes drawn on each image",
             "arity": "UNARY",
             "required": false,
@@ -52,8 +52,8 @@
         },
         {
             "name": "num_objects",
-            "label": "Number of objects",
-            "description": "Maximum number of objects to detect in the image",
+            "label": "Max number of objects",
+            "description": "Maximum number of objects to detect in each image",
             "type": "INT",
             "mandatory": true,
             "defaultValue": 10,
