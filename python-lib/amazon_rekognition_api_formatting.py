@@ -1,25 +1,35 @@
 # -*- coding: utf-8 -*-
+import os
 import logging
 import json
 from typing import AnyStr, Dict, List
 from enum import Enum
 
-from PIL import ImageDraw
+from PIL import Image, ImageFont, ImageDraw, UnidentifiedImageError
 import pandas as pd
+
+import dataiku
 
 from plugin_io_utils import (
     API_COLUMN_NAMES_DESCRIPTION_DICT,
+    IMAGE_PATH_COLUMN,
     ErrorHandlingEnum,
     build_unique_column_names,
     generate_unique,
     safe_json_loads,
     move_api_columns_to_end,
+    upload_pil_image_to_folder,
 )
 
 
 # ==============================================================================
 # CONSTANT DEFINITION
 # ==============================================================================
+
+BOUNDING_BOX_COLOR = "red"
+BOUNDING_BOX_TEXT_FONT = ImageFont.truetype(
+    font=os.path.join(dataiku.customrecipe.get_recipe_resource(), "SourceSansPro-Regular.otf"), size=64
+)
 
 
 class EntityTypeEnum(Enum):
@@ -45,6 +55,7 @@ class GenericAPIFormatter:
     - initialize with generic parameters
     - compute generic column descriptions
     - apply format_row to dataframe
+    - draw bounding box
     """
 
     def __init__(
@@ -54,6 +65,7 @@ class GenericAPIFormatter:
         error_handling: ErrorHandlingEnum = ErrorHandlingEnum.LOG,
     ):
         self.input_df = input_df
+        self.output_df = None  # initialization before calling format_df
         self.column_prefix = column_prefix
         self.error_handling = error_handling
         self.api_column_names = build_unique_column_names(input_df, column_prefix)
@@ -69,6 +81,7 @@ class GenericAPIFormatter:
         df = df.apply(func=self.format_row, axis=1)
         df = move_api_columns_to_end(df, self.api_column_names, self.error_handling)
         logging.info("Formatting API results: Done.")
+        self.output_df = df
         return df
 
 
@@ -85,11 +98,13 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
         self,
         input_df: pd.DataFrame,
         num_objects: int,
+        input_folder: dataiku.Folder = None,
         column_prefix: AnyStr = "object_api",
         error_handling: ErrorHandlingEnum = ErrorHandlingEnum.LOG,
     ):
         super().__init__(input_df, column_prefix, error_handling)
         self.num_objects = num_objects
+        self.input_folder = input_folder
         self.label_list_column = generate_unique("label_list", input_df.keys(), column_prefix)
         self.label_name_columns = [
             generate_unique("label_" + str(n + 1) + "_name", input_df.keys(), column_prefix) for n in range(num_objects)
@@ -121,6 +136,43 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
                 row[self.label_name_columns[n]] = ""
                 row[self.label_score_columns[n]] = None
         return row
+
+    def draw_bounding_boxes(self, output_folder: dataiku.Folder):
+        logging.info("Drawing bounding boxes and saving to output folder...")
+        for _, row in self.output_df.iterrows():
+            image_path = row[IMAGE_PATH_COLUMN]
+            response = safe_json_loads(row[self.api_column_names.response])
+            with self.input_folder.get_download_stream(image_path) as stream:
+                try:
+                    pil_image = Image.open(stream)
+                    output_image = pil_image.convert(mode="RGB")
+                    width, height = pil_image.size
+                except (UnidentifiedImageError, OSError) as e:
+                    logging.warning("Could not load image on path: " + image_path)
+                    if self.error_handling == ErrorHandlingEnum.FAIL:
+                        raise e
+            if response != "" and len(response) != 0:
+                draw = ImageDraw.Draw(output_image)
+                for label in response.get("Labels", []):
+                    for instance in label.get("Instances", []):
+                        bbox = instance.get("BoundingBox", {})
+                        left = width * bbox["Left"]
+                        top = height * bbox["Top"]
+                        w = width * bbox["Width"]
+                        h = height * bbox["Height"]
+                        margin = int(0.003 * max(width, height))  # reasonable design heuristic
+                        draw.rectangle([left, top, left + w, top + h], outline=BOUNDING_BOX_COLOR, width=margin)
+                        bbox_text = "{} - {:.1%}".format(label.get("Name", ""), instance.get("Confidence") / 100.0)
+                        # TODO adjust text size to scale
+                        draw.text(
+                            [left + 2 * margin, top + 2 * margin],  # reasonable design heuristic
+                            text=bbox_text,
+                            fill=BOUNDING_BOX_COLOR,
+                            font=BOUNDING_BOX_TEXT_FONT,
+                        )
+                # TODO use same extension as original file
+                upload_pil_image_to_folder(output_image, output_folder, image_path)
+        logging.info("Drawing bounding boxes and saving to output folder: Done.")
 
 
 class TextDetectionAPIFormatter(GenericAPIFormatter):

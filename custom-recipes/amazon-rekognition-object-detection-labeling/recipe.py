@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import logging
 from typing import Dict, AnyStr
 from ratelimit import limits, RateLimitException
 from retry import retry
@@ -21,14 +22,17 @@ from amazon_rekognition_api_formatting import ObjectDetectionLabelingAPIFormatte
 input_folder_names = get_input_names_for_role("input_folder")
 input_folder = dataiku.Folder(input_folder_names[0])
 input_folder_is_s3 = input_folder.get_info().get("type", "") == "S3"
-input_folder_access_info = input_folder.get_info().get("accessInfo", {})
-input_folder_bucket = input_folder_access_info.get("bucket")
-input_folder_root_path = str(input_folder_access_info.get("root", ""))[1:]
+if input_folder_is_s3:
+    logging.info("Input folder is on Amazon S3")
+    input_folder_access_info = input_folder.get_info().get("accessInfo", {})
+    input_folder_bucket = input_folder_access_info.get("bucket")
+    input_folder_root_path = str(input_folder_access_info.get("root", ""))[1:]
 
 output_dataset_names = get_output_names_for_role("output_dataset")  # mandatory output
 output_dataset = dataiku.Dataset(output_dataset_names[0])
-output_folder_names = get_output_names_for_role("output_folder")
-output_folder = None  # optional output
+
+output_folder_names = get_output_names_for_role("output_folder")  # optional output
+output_folder = None
 if len(output_folder_names) != 0:
     output_folder = dataiku.Folder(output_folder_names[0])
 
@@ -82,9 +86,16 @@ df = api_parallelizer(
 )
 
 api_formatter = ObjectDetectionLabelingAPIFormatter(
-    input_df=input_df, num_objects=num_objects, column_prefix=column_prefix, error_handling=error_handling
+    input_df=input_df,
+    num_objects=num_objects,
+    input_folder=input_folder,
+    column_prefix=column_prefix,
+    error_handling=error_handling,
 )
 output_df = api_formatter.format_df(df)
 
 output_dataset.write_with_schema(output_df)
 set_column_description(output_dataset=output_dataset, column_description_dict=api_formatter.column_description_dict)
+
+if output_folder is not None:
+    api_formatter.draw_bounding_boxes(output_folder)
