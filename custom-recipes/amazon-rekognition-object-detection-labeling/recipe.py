@@ -91,6 +91,7 @@ api_formatter = ObjectDetectionLabelingAPIFormatter(
     input_folder=input_folder,
     column_prefix=column_prefix,
     error_handling=error_handling,
+    parallel_workers=parallel_workers,
 )
 output_df = api_formatter.format_df(df)
 
@@ -98,4 +99,4 @@ output_dataset.write_with_schema(output_df)
 set_column_description(output_dataset=output_dataset, column_description_dict=api_formatter.column_description_dict)
 
 if output_folder is not None:
-    api_formatter.draw_bounding_boxes(output_folder)
+    api_formatter.save_bounding_boxes_all_images(output_folder)

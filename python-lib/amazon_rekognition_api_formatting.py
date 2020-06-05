@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-import os
 import logging
-import json
 from typing import AnyStr, Dict, List
 from enum import Enum
 
-from PIL import Image, ImageFont, ImageDraw, UnidentifiedImageError
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm.auto import tqdm as tqdm_auto
+from PIL import Image, UnidentifiedImageError
 import pandas as pd
 
 import dataiku
@@ -20,16 +20,13 @@ from plugin_io_utils import (
     move_api_columns_to_end,
     upload_pil_image_to_folder,
 )
+from api_parallelizer import DEFAULT_PARALLEL_WORKERS
+from image_utils import draw_bounding_box_pil_image
 
 
 # ==============================================================================
 # CONSTANT DEFINITION
 # ==============================================================================
-
-BOUNDING_BOX_COLOR = "red"
-BOUNDING_BOX_TEXT_FONT = ImageFont.truetype(
-    font=os.path.join(dataiku.customrecipe.get_recipe_resource(), "SourceSansPro-Regular.otf"), size=64
-)
 
 
 class EntityTypeEnum(Enum):
@@ -101,10 +98,12 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
         input_folder: dataiku.Folder = None,
         column_prefix: AnyStr = "object_api",
         error_handling: ErrorHandlingEnum = ErrorHandlingEnum.LOG,
+        parallel_workers: int = DEFAULT_PARALLEL_WORKERS,
     ):
         super().__init__(input_df, column_prefix, error_handling)
         self.num_objects = num_objects
         self.input_folder = input_folder
+        self.parallel_workers = parallel_workers
         self.label_list_column = generate_unique("label_list", input_df.keys(), column_prefix)
         self.label_name_columns = [
             generate_unique("label_" + str(n + 1) + "_name", input_df.keys(), column_prefix) for n in range(num_objects)
@@ -137,42 +136,56 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
                 row[self.label_score_columns[n]] = None
         return row
 
-    def draw_bounding_boxes(self, output_folder: dataiku.Folder):
+    def save_bounding_boxes_one_image(self, output_folder: dataiku.Folder, image_path: AnyStr, response: AnyStr):
+        result = False
+        with self.input_folder.get_download_stream(image_path) as stream:
+            try:
+                pil_image = Image.open(stream)
+                if response != "" and len(response) != 0:
+                    for label in response.get("Labels", []):
+                        for instance in label.get("Instances", []):
+                            bbox = instance.get("BoundingBox", {})
+                            bbox_text = [
+                                "{} - {:.1%} ".format(label.get("Name", ""), instance.get("Confidence") / 100.0)
+                            ]
+                            xmin = float(bbox.get("Left"))
+                            ymin = float(bbox.get("Top"))
+                            xmax = xmin + float(bbox.get("Width"))
+                            ymax = ymin + float(bbox.get("Height"))
+                            draw_bounding_box_pil_image(pil_image, ymin, xmin, ymax, xmax, bbox_text)
+                    # TODO use same extension as original file
+                    upload_pil_image_to_folder(pil_image, output_folder, image_path)
+                    result = True
+            except (UnidentifiedImageError, OSError) as e:
+                logging.warning("Could not load image on path: " + image_path)
+                if self.error_handling == ErrorHandlingEnum.FAIL:
+                    raise e
+            return result
+
+    def save_bounding_boxes_all_images(self, output_folder: dataiku.Folder):
+        df_iterator = (i[1].to_dict() for i in self.output_df.iterrows())
+        len_iterator = len(self.output_df.index)
+        api_results = []
         logging.info("Drawing bounding boxes and saving to output folder...")
-        for _, row in self.output_df.iterrows():
-            image_path = row[IMAGE_PATH_COLUMN]
-            response = safe_json_loads(row[self.api_column_names.response])
-            with self.input_folder.get_download_stream(image_path) as stream:
-                try:
-                    pil_image = Image.open(stream)
-                    output_image = pil_image.convert(mode="RGB")
-                    width, height = pil_image.size
-                except (UnidentifiedImageError, OSError) as e:
-                    logging.warning("Could not load image on path: " + image_path)
-                    if self.error_handling == ErrorHandlingEnum.FAIL:
-                        raise e
-            if response != "" and len(response) != 0:
-                draw = ImageDraw.Draw(output_image)
-                for label in response.get("Labels", []):
-                    for instance in label.get("Instances", []):
-                        bbox = instance.get("BoundingBox", {})
-                        left = width * bbox["Left"]
-                        top = height * bbox["Top"]
-                        w = width * bbox["Width"]
-                        h = height * bbox["Height"]
-                        margin = int(0.003 * max(width, height))  # reasonable design heuristic
-                        draw.rectangle([left, top, left + w, top + h], outline=BOUNDING_BOX_COLOR, width=margin)
-                        bbox_text = "{} - {:.1%}".format(label.get("Name", ""), instance.get("Confidence") / 100.0)
-                        # TODO adjust text size to scale
-                        draw.text(
-                            [left + 2 * margin, top + 2 * margin],  # reasonable design heuristic
-                            text=bbox_text,
-                            fill=BOUNDING_BOX_COLOR,
-                            font=BOUNDING_BOX_TEXT_FONT,
-                        )
-                # TODO use same extension as original file
-                upload_pil_image_to_folder(output_image, output_folder, image_path)
-        logging.info("Drawing bounding boxes and saving to output folder: Done.")
+        with ThreadPoolExecutor(max_workers=self.parallel_workers) as pool:
+            futures = [
+                pool.submit(
+                    self.save_bounding_boxes_one_image,
+                    output_folder=output_folder,
+                    image_path=row[IMAGE_PATH_COLUMN],
+                    response=safe_json_loads(row[self.api_column_names.response]),
+                )
+                for row in df_iterator
+            ]
+            for f in tqdm_auto(as_completed(futures), total=len_iterator):
+                api_results.append(f.result())
+        num_success = sum(api_results)
+        num_error = len(api_results) - num_success
+        logging.info(
+            "Drawing bounding boxes and saving to output folder: {} images succeeded, {} images failed".format(
+                num_success, num_error
+            )
+        )
 
 
 class TextDetectionAPIFormatter(GenericAPIFormatter):
@@ -265,24 +278,6 @@ class UnsafeContentAPIFormatter(GenericAPIFormatter):
         return row
 
 
-def detect_labels(image_file, client):
-    row = {}
-    response = client.detect_labels(Image={"Bytes": image_file.read()})
-    labels = [l["Name"] for l in response.get("Labels")]
-    if len(labels):
-        row["detected_labels"] = json.dumps(labels)
-    return row, response, labels
-
-
-def detect_objects(image_file, client):
-    row = {}
-    response = client.detect_labels(Image={"Bytes": image_file.read()})
-    bbox_list = _format_bounded_boxes(response.get("Labels"))
-    if len(bbox_list):
-        row["detected_objects"] = json.dumps(bbox_list)
-    return row, response, bbox_list
-
-
 def detect_adult_content(image_file, client):
     row = {"adult_score": 0, "suggestive_score": 0, "violence_score": 0}
     response = client.detect_moderation_labels(Image={"Bytes": image_file.read()})
@@ -298,43 +293,3 @@ def detect_adult_content(image_file, client):
     row["is_suggestive_content"] = row["suggestive_score"] > 0.5
     row["is_violent_content"] = row["suggestive_score"] > 0.5
     return row, response
-
-
-def _format_bounded_boxes(raw_bbox):
-    ret = []
-    for label in raw_bbox:
-        for instance in label["Instances"]:
-            ret.append(
-                {
-                    "label": label["Name"],
-                    "score": instance["Confidence"],
-                    "top": instance["BoundingBox"]["Top"],
-                    "left": instance["BoundingBox"]["Left"],
-                    "width": instance["BoundingBox"]["Width"],
-                    "height": instance["BoundingBox"]["Height"],
-                }
-            )
-    return ret
-
-
-"""
-bbox_list: list of {label, score, top, left, width, height}
-  * score is supposed to be in 0-1 range
-  * top, left, width, height are normalized (0-1 range)
-"""
-
-
-def draw_bounding_boxes(pil_image, bbox_list):
-    output_image = pil_image.convert(mode="RGB")
-    width, height = pil_image.size
-    draw = ImageDraw.Draw(output_image)
-
-    for bbox in bbox_list:
-        left = width * bbox["left"]
-        top = height * bbox["top"]
-        w = width * bbox["width"]
-        h = height * bbox["height"]
-        draw.rectangle([left, top, left + w, top + h], outline="#00FF00")
-        draw.text([left, top], bbox["label"])  # add proba and improve font
-
-    return output_image
