@@ -49,8 +49,15 @@ def generate_path_list(folder: dataiku.Folder):
 
 def upload_pil_image_to_folder(pil_image: Image, folder: dataiku.Folder, path: AnyStr):
     image_bytes = BytesIO()
-    # TODO choose PNG or better quality for JPEG
-    pil_image.save(image_bytes, format="PNG")
+    file_extension = path.split(".")[-1].upper()
+    if file_extension in {"JPG", "JPEG"}:
+        pil_image.save(
+            image_bytes, format="JPEG", quality=100, subsampling="keep", icc_profile=pil_image.info.get("icc_profile")
+        )
+    elif file_extension == "PNG":
+        pil_image.save(image_bytes, format="PNG", optimize=True)
+    else:
+        pil_image.save(image_bytes, format=file_extension)
     folder.upload_stream(path, image_bytes.getvalue())
 
 

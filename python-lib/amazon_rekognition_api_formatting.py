@@ -21,7 +21,7 @@ from plugin_io_utils import (
     upload_pil_image_to_folder,
 )
 from api_parallelizer import DEFAULT_PARALLEL_WORKERS
-from image_utils import draw_bounding_box_pil_image
+from plugin_image_utils import draw_bounding_box_pil_image
 
 
 # ==============================================================================
@@ -81,6 +81,46 @@ class GenericAPIFormatter:
         self.output_df = df
         return df
 
+    def draw_bounding_boxes_from_response(self, image: Image, response: AnyStr) -> Image:
+        return image
+
+    def save_bounding_boxes_one_image(self, output_folder: dataiku.Folder, image_path: AnyStr, response: AnyStr):
+        result = False
+        with self.input_folder.get_download_stream(image_path) as stream:
+            try:
+                pil_image = Image.open(stream)
+                self.draw_bounding_box_from_response(pil_image, response)
+                upload_pil_image_to_folder(pil_image, output_folder, image_path)
+                result = True
+            except (UnidentifiedImageError, OSError) as e:
+                logging.warning("Could not load image on path: " + image_path)
+                if self.error_handling == ErrorHandlingEnum.FAIL:
+                    raise e
+        return result
+
+    def save_bounding_boxes_all_images(self, output_folder: dataiku.Folder):
+        df_iterator = (i[1].to_dict() for i in self.output_df.iterrows())
+        len_iterator = len(self.output_df.index)
+        logging.info("Saving bounding boxes to output folder...")
+        api_results = []
+        with ThreadPoolExecutor(max_workers=self.parallel_workers) as pool:
+            futures = [
+                pool.submit(
+                    self.save_bounding_boxes_one_image,
+                    output_folder=output_folder,
+                    image_path=row[IMAGE_PATH_COLUMN],
+                    response=safe_json_loads(row[self.api_column_names.response]),
+                )
+                for row in df_iterator
+            ]
+            for f in tqdm_auto(as_completed(futures), total=len_iterator):
+                api_results.append(f.result())
+        num_success = sum(api_results)
+        num_error = len(api_results) - num_success
+        logging.info(
+            "Saving bounding boxes to output folder: {} images succeeded, {} failed".format(num_success, num_error)
+        )
+
 
 class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
     """
@@ -136,56 +176,26 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
                 row[self.label_score_columns[n]] = None
         return row
 
-    def save_bounding_boxes_one_image(self, output_folder: dataiku.Folder, image_path: AnyStr, response: AnyStr):
-        result = False
-        with self.input_folder.get_download_stream(image_path) as stream:
-            try:
-                pil_image = Image.open(stream)
-                if response != "" and len(response) != 0:
-                    for label in response.get("Labels", []):
-                        for instance in label.get("Instances", []):
-                            bbox = instance.get("BoundingBox", {})
-                            bbox_text = [
-                                "{} - {:.1%} ".format(label.get("Name", ""), instance.get("Confidence") / 100.0)
-                            ]
-                            xmin = float(bbox.get("Left"))
-                            ymin = float(bbox.get("Top"))
-                            xmax = xmin + float(bbox.get("Width"))
-                            ymax = ymin + float(bbox.get("Height"))
-                            draw_bounding_box_pil_image(pil_image, ymin, xmin, ymax, xmax, bbox_text)
-                    # TODO use same extension as original file
-                    upload_pil_image_to_folder(pil_image, output_folder, image_path)
-                    result = True
-            except (UnidentifiedImageError, OSError) as e:
-                logging.warning("Could not load image on path: " + image_path)
-                if self.error_handling == ErrorHandlingEnum.FAIL:
-                    raise e
-            return result
-
-    def save_bounding_boxes_all_images(self, output_folder: dataiku.Folder):
-        df_iterator = (i[1].to_dict() for i in self.output_df.iterrows())
-        len_iterator = len(self.output_df.index)
-        api_results = []
-        logging.info("Drawing bounding boxes and saving to output folder...")
-        with ThreadPoolExecutor(max_workers=self.parallel_workers) as pool:
-            futures = [
-                pool.submit(
-                    self.save_bounding_boxes_one_image,
-                    output_folder=output_folder,
-                    image_path=row[IMAGE_PATH_COLUMN],
-                    response=safe_json_loads(row[self.api_column_names.response]),
-                )
-                for row in df_iterator
+    def draw_bounding_box_from_response(self, image: Image, response: AnyStr) -> Image:
+        if response != "" and len(response) != 0:
+            bounding_box_list_dict = [
+                {
+                    "name": label.get("Name", ""),
+                    "bbox_dict": instance.get("BoundingBox", {}),
+                    "confidence": float(instance.get("Confidence") / 100.0),
+                }
+                for label in response.get("Labels", [])
+                for instance in label.get("Instances", [])
             ]
-            for f in tqdm_auto(as_completed(futures), total=len_iterator):
-                api_results.append(f.result())
-        num_success = sum(api_results)
-        num_error = len(api_results) - num_success
-        logging.info(
-            "Drawing bounding boxes and saving to output folder: {} images succeeded, {} images failed".format(
-                num_success, num_error
-            )
-        )
+            bounding_box_list_dict = sorted(bounding_box_list_dict, key=lambda x: x.get("confidence"))
+            for bounding_box_dict in bounding_box_list_dict:
+                bbox_text = "{} - {:.1%} ".format(bounding_box_dict["name"], bounding_box_dict["confidence"])
+                xmin = float(bounding_box_dict["bbox_dict"].get("Left"))
+                ymin = float(bounding_box_dict["bbox_dict"].get("Top"))
+                xmax = xmin + float(bounding_box_dict["bbox_dict"].get("Width"))
+                ymax = ymin + float(bounding_box_dict["bbox_dict"].get("Height"))
+                draw_bounding_box_pil_image(image, ymin, xmin, ymax, xmax, bbox_text)
+        return image
 
 
 class TextDetectionAPIFormatter(GenericAPIFormatter):
