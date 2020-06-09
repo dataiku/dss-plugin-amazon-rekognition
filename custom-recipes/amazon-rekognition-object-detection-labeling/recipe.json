@@ -51,16 +51,6 @@
             "mandatory": true
         },
         {
-            "name": "num_objects",
-            "label": "Max number of objects",
-            "description": "Maximum number of objects to detect in each image",
-            "type": "INT",
-            "mandatory": true,
-            "defaultValue": 10,
-            "minI": 1,
-            "maxI": 1000
-        },
-        {
             "name": "separator_advanced",
             "label": "Advanced",
             "type": "SEPARATOR"
@@ -70,6 +60,17 @@
             "label": "Expert mode",
             "type": "BOOLEAN",
             "defaultValue": false
+        },
+        {
+            "name": "num_objects",
+            "label": "Number of objects",
+            "description": "Maximum number of objects to detect in each image",
+            "visibilityCondition": "model.expert == true",
+            "type": "INT",
+            "mandatory": true,
+            "defaultValue": 10,
+            "minI": 1,
+            "maxI": 1000
         },
         {
             "name": "minimum_score",
