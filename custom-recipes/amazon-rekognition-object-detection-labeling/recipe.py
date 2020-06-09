@@ -44,7 +44,7 @@ parallel_workers = api_configuration_preset.get("parallel_workers")
 num_objects = int(recipe_config.get("num_objects", 1))
 if num_objects < 1:
     raise ValueError("Number of objects must be greater than 1")
-minimum_score = int(recipe_config.get("minimum_score", 0)) * 100
+minimum_score = int(recipe_config.get("minimum_score", 0) * 100)
 if minimum_score < 0 or minimum_score > 100:
     raise ValueError("Minimum confidence score must be between 0 and 1")
 error_handling = ErrorHandlingEnum[recipe_config.get("error_handling")]
@@ -99,4 +99,4 @@ output_dataset.write_with_schema(output_df)
 set_column_description(output_dataset=output_dataset, column_description_dict=api_formatter.column_description_dict)
 
 if output_folder is not None:
-    api_formatter.save_bounding_boxes_all_images(output_folder)
+    api_formatter.format_save_images(output_folder)

@@ -12,7 +12,7 @@ import pandas as pd
 from amazon_rekognition_api_client import API_EXCEPTIONS, get_client, supported_image_format
 from plugin_io_utils import IMAGE_PATH_COLUMN, ErrorHandlingEnum, generate_path_list, set_column_description
 from api_parallelizer import api_parallelizer
-from amazon_rekognition_api_formatting import GenericAPIFormatter
+from amazon_rekognition_api_formatting import TextDetectionAPIFormatter
 
 
 # ==============================================================================
@@ -42,7 +42,7 @@ api_quota_rate_limit = api_configuration_preset.get("api_quota_rate_limit")
 api_quota_period = api_configuration_preset.get("api_quota_period")
 parallel_workers = api_configuration_preset.get("parallel_workers")
 num_objects = int(recipe_config.get("num_objects", 1))
-minimum_score = int(recipe_config.get("minimum_score", 0)) * 100
+minimum_score = int(recipe_config.get("minimum_score", 0) * 100)
 if minimum_score < 0 or minimum_score > 100:
     raise ValueError("Minimum confidence score must be between 0 and 1")
 error_handling = ErrorHandlingEnum[recipe_config.get("error_handling")]
@@ -83,9 +83,10 @@ df = api_parallelizer(
     minimum_score=minimum_score,
 )
 
-api_formatter = GenericAPIFormatter(
+api_formatter = TextDetectionAPIFormatter(
     input_df=input_df,
     input_folder=input_folder,
+    minimum_score=minimum_score,
     column_prefix=column_prefix,
     error_handling=error_handling,
     parallel_workers=parallel_workers,
@@ -96,4 +97,4 @@ output_dataset.write_with_schema(output_df)
 set_column_description(output_dataset=output_dataset, column_description_dict=api_formatter.column_description_dict)
 
 if output_folder is not None:
-    api_formatter.save_bounding_boxes_all_images(output_folder)
+    api_formatter.format_save_images(output_folder)

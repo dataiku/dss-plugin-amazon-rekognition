@@ -77,7 +77,7 @@ def draw_bounding_box_pil_image(
     """
     draw = ImageDraw.Draw(image)
     im_width, im_height = image.size
-    line_thickness = 4 * int(np.ceil(0.001 * max(im_width, im_height)))
+    line_thickness = 3 * int(np.ceil(0.001 * max(im_width, im_height)))
     (left, right, top, bottom) = (xmin, xmax, ymin, ymax)
     if use_normalized_coordinates:
         (left, right, top, bottom) = (xmin * im_width, xmax * im_width, ymin * im_height, ymax * im_height)
