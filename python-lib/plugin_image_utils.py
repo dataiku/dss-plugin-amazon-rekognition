@@ -21,33 +21,27 @@ BOUNDING_BOX_FONT_DEFAULT_SIZE = 18
 # ==============================================================================
 
 
-def scale_bounding_box_font(image: Image, text_line_list: List[AnyStr], bounding_box_width: int) -> ImageFont:
+def scale_bounding_box_font(image: Image, text_line_list: List[AnyStr], bbox_left: int, bbox_right: int) -> ImageFont:
     """
     Compute font for bounding box text to enforce specific design guidelines for short text:
     - use custom font from BOUNDING_BOX_FONT_PATH (bundled in the resource folder of the plugin)
-    - scale font size to fit the text to a percentage of the bounding box width
-        * 120% - narrow bounding boxes below 15% of image width
-        * 120% - narrow bounding boxes below 15% of image width
-        * 80% - default
-        * 33% - large bounding boxes above 33% of image width
-    - bucket font size in increments (2, 4, 6, 8, ...) to homogenize font sizing
+    - scale font size to fit the text width to percentages of the width of the image and bounding box
+      and avoid text overflowing to the right outside the image
+    - bucket font size in increments (4, 6, 8, ...) to homogenize font sizing
+    Note that this function is designed for languages which read horizontally from left to right
     """
     # Initialize font
     im_width, im_height = image.size
     font_default_size = ImageFont.truetype(font=BOUNDING_BOX_FONT_PATH, size=BOUNDING_BOX_FONT_DEFAULT_SIZE)
     text_width_default_size = max([font_default_size.getsize(t)[0] for t in text_line_list])
-    # Start with a default font size at 80% of bounding box width
-    scaled_font_size = int(0.8 * bounding_box_width / text_width_default_size * BOUNDING_BOX_FONT_DEFAULT_SIZE)
+    # Scale font size to percentages of the width of the image and bounding box
+    target_width = int(max(0.15 * im_width, 0.3 * (bbox_right - bbox_left)))
+    if bbox_left + target_width > im_width:
+        target_width = int(im_width - bbox_left)
+    scaled_font_size = int(target_width * BOUNDING_BOX_FONT_DEFAULT_SIZE / text_width_default_size)
     scaled_font = font_default_size.font_variant(size=scaled_font_size)
-    text_width_scaled_size = max([scaled_font.getsize(t)[0] for t in text_line_list])
-    # Narrow bounding boxes below 15% of image width
-    if text_width_scaled_size < np.ceil(0.15 * im_width):
-        scaled_font_size = int(1.2 * bounding_box_width / text_width_default_size * BOUNDING_BOX_FONT_DEFAULT_SIZE)
-    # Large bounding boxes above 33% of image width
-    elif text_width_scaled_size > np.ceil(0.33 * im_width):
-        scaled_font_size = int(0.33 * bounding_box_width / text_width_default_size * BOUNDING_BOX_FONT_DEFAULT_SIZE)
     # Bucket font size in increments (2, 4, 6, 8, ...) to homogenize font sizing
-    scaled_font_size = 2 * int(np.ceil(scaled_font_size / 2.0))
+    scaled_font_size = max(2 * int(np.ceil(scaled_font_size / 2.0)), 4)
     scaled_font = font_default_size.font_variant(size=scaled_font_size)
     return scaled_font
 
@@ -91,7 +85,7 @@ def draw_bounding_box_pil_image(
     draw.line(xy=lines, width=line_thickness, fill=color)
     if text != "" and text is not None:
         text_line_list = text.splitlines()
-        scaled_font = scale_bounding_box_font(image, text_line_list, right - left)
+        scaled_font = scale_bounding_box_font(image, text_line_list, left, right)
         # If the total height of the display strings added to the top of the bounding box
         # exceeds the top of the image, stack the strings below the bounding box instead of above.
         text_height = sum([scaled_font.getsize(t)[1] for t in text_line_list])
@@ -103,8 +97,7 @@ def draw_bounding_box_pil_image(
         for t in text_line_list[::-1]:
             text_width, text_height = scaled_font.getsize(t)
             margin = int(np.ceil(0.05 * text_height))
-            draw.rectangle(
-                xy=[(left, text_bottom - text_height - 2 * margin), (left + text_width, text_bottom)], fill=color
-            )
+            rectangle = [(left, text_bottom - text_height - 2 * margin), (left + text_width, text_bottom + 2 * margin)]
+            draw.rectangle(xy=rectangle, fill=color)
             draw.text(xy=(left + margin, text_bottom - text_height - margin), text=t, fill="black", font=scaled_font)
             text_bottom -= text_height - 2 * margin
