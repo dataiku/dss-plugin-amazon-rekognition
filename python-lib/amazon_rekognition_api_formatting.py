@@ -58,13 +58,17 @@ class GenericAPIFormatter:
     def __init__(
         self,
         input_df: pd.DataFrame,
+        input_folder: dataiku.Folder = None,
         column_prefix: AnyStr = "api",
         error_handling: ErrorHandlingEnum = ErrorHandlingEnum.LOG,
+        parallel_workers: int = DEFAULT_PARALLEL_WORKERS,
     ):
         self.input_df = input_df
+        self.input_folder = input_folder
         self.output_df = None  # initialization before calling format_df
         self.column_prefix = column_prefix
         self.error_handling = error_handling
+        self.parallel_workers = parallel_workers
         self.api_column_names = build_unique_column_names(input_df, column_prefix)
         self.column_description_dict = {
             v: API_COLUMN_NAMES_DESCRIPTION_DICT[k] for k, v in self.api_column_names._asdict().items()
@@ -89,7 +93,7 @@ class GenericAPIFormatter:
         with self.input_folder.get_download_stream(image_path) as stream:
             try:
                 pil_image = Image.open(stream)
-                self.draw_bounding_box_from_response(pil_image, response)
+                self.draw_bounding_boxes_from_response(pil_image, response)
                 upload_pil_image_to_folder(pil_image, output_folder, image_path)
                 result = True
             except (UnidentifiedImageError, OSError) as e:
@@ -176,7 +180,7 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
                 row[self.label_score_columns[n]] = None
         return row
 
-    def draw_bounding_box_from_response(self, image: Image, response: AnyStr) -> Image:
+    def draw_bounding_boxes_from_response(self, image: Image, response: AnyStr) -> Image:
         if response != "" and len(response) != 0:
             bounding_box_list_dict = [
                 {

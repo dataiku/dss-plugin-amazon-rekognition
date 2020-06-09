@@ -62,6 +62,17 @@
             "defaultValue": false
         },
         {
+            "name": "minimum_score",
+            "label": "Minimum score",
+            "description": "Minimum confidence score (from 0 to 1) for the object to be detected",
+            "visibilityCondition": "model.expert == true",
+            "type": "DOUBLE",
+            "mandatory": true,
+            "defaultValue": 0,
+            "minD": 0,
+            "maxD": 1
+        },
+        {
             "name": "error_handling",
             "label": "Error handling",
             "type": "SELECT",
