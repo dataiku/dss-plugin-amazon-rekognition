@@ -29,16 +29,37 @@ from plugin_image_utils import draw_bounding_box_pil_image
 # ==============================================================================
 
 
-class EntityTypeEnum(Enum):
-    COMMERCIAL_ITEM = "Commercial item"
-    DATE = "Date"
-    EVENT = "Event"
-    LOCATION = "Location"
-    ORGANIZATION = "Organization"
-    OTHER = "Other"
-    PERSON = "Person"
-    QUANTITY = "Quantity"
-    TITLE = "Title"
+class UnsafeContentCategoryLevelEnum(Enum):
+    TOP = "Top-level (simple)"
+    SECOND = "Second-level (detailed)"
+
+
+class UnsafeContentCategoryTopLevelEnum(Enum):
+    EXPLICIT_NUDITY = "Explicit Nudity"
+    SUGGESTIVE = "Suggestive"
+    VIOLENCE = "Violence"
+    VISUALLY_DISTURBING = "Visually Disturbing"
+
+
+class UnsafeContentCategorySecondLevelEnum(Enum):
+    NUDITY = "Nudity"
+    GRAPHIC_MALE_NUDITY = "Graphic Male Nudity"
+    GRAPHIC_FEMALE_NUDITY = "Graphic Female Nudity"
+    SEXUAL_ACTIVITY = "Sexual Activity"
+    ILLUSTRATED_NUDITY_OR_SEXUAL_ACTIVITY = "Illustrated Nudity Or Sexual Activity"
+    ADULT_TOYS = "Adult Toys"
+    FEMALE_SWIMWEAR_OR_UNDERWEAR = "Female Swimwear Or Underwear"
+    MALE_SWIMWEAR_OR_UNDERWEAR = "Male Swimwear Or Underwear"
+    PARTIAL_NUDITY = "Partial Nudity"
+    REVEALING_CLOTHES = "Revealing Clothes"
+    GRAPHIC_VIOLENCE_OR_GORE = "Graphic Violence Or Gore"
+    PHYSICAL_VIOLENCE = "Physical Violence"
+    WEAPON_VIOLENCE = "Weapon Violence"
+    WEAPONS = "Weapons"
+    SELF_INJURY = "Self Injury"
+    EMACIATED_BODIES = "Emaciated Bodies"
+    CORPSES = "Corpses"
+    HANGING = "Hanging"
 
 
 # ==============================================================================
@@ -281,52 +302,51 @@ class UnsafeContentAPIFormatter(GenericAPIFormatter):
     def __init__(
         self,
         input_df: pd.DataFrame,
-        entity_types: List,
-        minimum_score: float,
-        column_prefix: AnyStr = "entity_api",
+        category_level: UnsafeContentCategoryLevelEnum = UnsafeContentCategoryLevelEnum.TOP,
+        content_categories_top_level: List[UnsafeContentCategoryTopLevelEnum] = [],
+        content_categories_second_level: List[UnsafeContentCategorySecondLevelEnum] = [],
+        column_prefix: AnyStr = "moderation_api",
         error_handling: ErrorHandlingEnum = ErrorHandlingEnum.LOG,
     ):
-        super().__init__(input_df, column_prefix, error_handling)
-        self.entity_types = entity_types
-        self.minimum_score = float(minimum_score)
+        super().__init__(
+            input_df=input_df, column_prefix=column_prefix, error_handling=error_handling,
+        )
+        self.category_level = category_level
+        if self.category_level == UnsafeContentCategoryLevelEnum.TOP:
+            self.content_category_enum = UnsafeContentCategoryTopLevelEnum
+            self.content_categories = content_categories_top_level
+        else:
+            self.content_category_enum = UnsafeContentCategorySecondLevelEnum
+            self.content_categories = content_categories_second_level
+        self.is_unsafe_column = generate_unique("unsafe_content", self.input_df.keys(), self.column_prefix)
         self._compute_column_description()
 
     def _compute_column_description(self):
-        for n, m in EntityTypeEnum.__members__.items():
-            entity_type_column = generate_unique("entity_type_" + n.lower(), self.input_df.keys(), self.column_prefix)
-            self.column_description_dict[entity_type_column] = "List of '{}' entities recognized by the API".format(
-                str(m.value)
+        self.column_description_dict[self.is_unsafe_column] = "Unsafe content detected by the API"
+        for n, m in self.content_category_enum.__members__.items():
+            confidence_column = generate_unique(n.lower() + "_score", self.input_df.keys(), self.column_prefix)
+            self.column_description_dict[confidence_column] = "Confidence score in category '{}' from 0 to 1".format(
+                m.value
             )
 
     def format_row(self, row: Dict) -> Dict:
         raw_response = row[self.api_column_names.response]
         response = safe_json_loads(raw_response, self.error_handling)
-        entities = response.get("Entities", [])
-        selected_entity_types = sorted([e.name for e in self.entity_types])
-        for n in selected_entity_types:
-            entity_type_column = generate_unique("entity_type_" + n.lower(), row.keys(), self.column_prefix)
-            row[entity_type_column] = [
-                e.get("Text")
-                for e in entities
-                if e.get("Type", "") == n and float(e.get("Score", 0)) >= self.minimum_score
-            ]
-            if len(row[entity_type_column]) == 0:
-                row[entity_type_column] = ""
+        moderation_labels = response.get("ModerationLabels", [])
+        row[self.is_unsafe_column] = False
+        unsafe_list = []
+        for category in self.content_categories:
+            confidence_column = generate_unique(
+                category.name.lower() + "_score", self.input_df.keys(), self.column_prefix
+            )
+            row[confidence_column] = ""
+            if self.category_level == UnsafeContentCategoryLevelEnum.TOP:
+                scores = [l.get("Confidence") for l in moderation_labels if l.get("ParentName", "") == category.value]
+            else:
+                scores = [l.get("Confidence") for l in moderation_labels if l.get("Name", "") == category.value]
+            if len(scores) != 0:
+                unsafe_list.append(True)
+                row[confidence_column] = scores[0]
+        if len(unsafe_list) != 0:
+            row[self.is_unsafe_column] = True
         return row
-
-
-def detect_adult_content(image_file, client):
-    row = {"adult_score": 0, "suggestive_score": 0, "violence_score": 0}
-    response = client.detect_moderation_labels(Image={"Bytes": image_file.read()})
-
-    for m in response.get("ModerationLabels", []):
-        if m["Name"] == "Explicit Nudity" or m["ParentName"] == "Explicit Nudity":
-            row["adult_score"] = max(row["adult_score"], m["Confidence"])
-        if m["Name"] == "Suggestive" or m["ParentName"] == "Suggestive":
-            row["suggestive_score"] = max(row["suggestive_score"], m["Confidence"])
-        if m["Name"] == "Violence" or m["ParentName"] == "Violence":
-            row["violence_score"] = max(row["violence_score"], m["Confidence"])
-    row["is_adult_content"] = row["adult_score"] > 0.5
-    row["is_suggestive_content"] = row["suggestive_score"] > 0.5
-    row["is_violent_content"] = row["suggestive_score"] > 0.5
-    return row, response
