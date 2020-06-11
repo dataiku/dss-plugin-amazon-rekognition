@@ -195,8 +195,10 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
     def format_row(self, row: Dict) -> Dict:
         raw_response = row[self.api_column_names.response]
         response = safe_json_loads(raw_response, self.error_handling)
+        row[self.label_list_column] = ""
         labels = sorted(response.get("Labels", []), key=lambda x: x.get("Confidence"), reverse=True)
-        row[self.label_list_column] = [l.get("Name") for l in labels]
+        if len(labels) != 0:
+            row[self.label_list_column] = [l.get("Name") for l in labels]
         for n in range(self.num_objects):
             if len(labels) > n:
                 row[self.label_name_columns[n]] = labels[n].get("Name", "")
@@ -319,10 +321,12 @@ class UnsafeContentAPIFormatter(GenericAPIFormatter):
             self.content_category_enum = UnsafeContentCategorySecondLevelEnum
             self.content_categories = content_categories_second_level
         self.is_unsafe_column = generate_unique("unsafe_content", self.input_df.keys(), self.column_prefix)
+        self.unsafe_list_column = generate_unique("unsafe_categories", self.input_df.keys(), self.column_prefix)
         self._compute_column_description()
 
     def _compute_column_description(self):
         self.column_description_dict[self.is_unsafe_column] = "Unsafe content detected by the API"
+        self.column_description_dict[self.unsafe_list_column] = "List of unsafe content categories detected by the API"
         for n, m in self.content_category_enum.__members__.items():
             confidence_column = generate_unique(n.lower() + "_score", self.input_df.keys(), self.column_prefix)
             self.column_description_dict[confidence_column] = "Confidence score in category '{}' from 0 to 1".format(
@@ -334,6 +338,7 @@ class UnsafeContentAPIFormatter(GenericAPIFormatter):
         response = safe_json_loads(raw_response, self.error_handling)
         moderation_labels = response.get("ModerationLabels", [])
         row[self.is_unsafe_column] = False
+        row[self.unsafe_list_column] = ""
         unsafe_list = []
         for category in self.content_categories:
             confidence_column = generate_unique(
@@ -345,8 +350,9 @@ class UnsafeContentAPIFormatter(GenericAPIFormatter):
             else:
                 scores = [l.get("Confidence") for l in moderation_labels if l.get("Name", "") == category.value]
             if len(scores) != 0:
-                unsafe_list.append(True)
+                unsafe_list.append(str(category.value))
                 row[confidence_column] = scores[0]
         if len(unsafe_list) != 0:
             row[self.is_unsafe_column] = True
+            row[self.unsafe_list_column] = unsafe_list
         return row

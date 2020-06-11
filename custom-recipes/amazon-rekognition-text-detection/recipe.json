@@ -1,7 +1,7 @@
 {
     "meta": {
         "label": "Text Detection",
-        "description": "Detect text (in latin script) in images",
+        "description": "Detect text (up to 50 words in latin script) in images",
         "icon": "icon-amazon-rekognition icon-cloud",
         "displayOrderRank": 2
     },
@@ -65,10 +65,10 @@
             "name": "minimum_score",
             "label": "Minimum score",
             "description": "Minimum confidence score (from 0 to 1) for the text to be detected",
-            "visibilityCondition": "model.expert == true",
+            "visibilityCondition": "model.expert",
             "type": "DOUBLE",
             "mandatory": true,
-            "defaultValue": 0.55,
+            "defaultValue": 0.5,
             "minD": 0,
             "maxD": 1
         },
@@ -76,7 +76,7 @@
             "name": "error_handling",
             "label": "Error handling",
             "type": "SELECT",
-            "visibilityCondition": "model.expert == true",
+            "visibilityCondition": "model.expert",
             "selectChoices": [
                 {
                     "value": "FAIL",

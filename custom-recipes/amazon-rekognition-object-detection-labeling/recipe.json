@@ -63,9 +63,9 @@
         },
         {
             "name": "num_objects",
-            "label": "Number of objects",
-            "description": "Maximum number of objects to detect in each image",
-            "visibilityCondition": "model.expert == true",
+            "label": "Number of labels",
+            "description": "Maximum number of object labels to detect in each image",
+            "visibilityCondition": "model.expert",
             "type": "INT",
             "mandatory": true,
             "defaultValue": 10,
@@ -76,7 +76,7 @@
             "name": "minimum_score",
             "label": "Minimum score",
             "description": "Minimum confidence score (from 0 to 1) for the object to be detected",
-            "visibilityCondition": "model.expert == true",
+            "visibilityCondition": "model.expert",
             "type": "DOUBLE",
             "mandatory": true,
             "defaultValue": 0.55,
@@ -87,7 +87,7 @@
             "name": "error_handling",
             "label": "Error handling",
             "type": "SELECT",
-            "visibilityCondition": "model.expert == true",
+            "visibilityCondition": "model.expert",
             "selectChoices": [
                 {
                     "value": "FAIL",
