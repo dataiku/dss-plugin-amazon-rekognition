@@ -66,6 +66,8 @@ column_prefix = "moderation_api"
 
 image_path_list = [p for p in generate_path_list(input_folder) if supported_image_format(p)]
 input_df = pd.DataFrame(image_path_list, columns=[IMAGE_PATH_COLUMN])
+if len(input_df.index) == 0:
+    raise ValueError("No images of supported format (PNG or JPG) were found in the folder")
 
 
 @retry((RateLimitException, OSError), delay=api_quota_period, tries=5)
