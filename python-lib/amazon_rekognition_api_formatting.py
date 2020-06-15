@@ -109,14 +109,16 @@ class GenericAPIFormatter:
     def format_image(self, image: Image, response: Dict) -> Image:
         return image
 
-    def format_save_image(self, output_folder: dataiku.Folder, image_path: AnyStr, response: Dict):
+    def format_save_image(self, output_folder: dataiku.Folder, image_path: AnyStr, response: Dict) -> bool:
         result = False
         with self.input_folder.get_download_stream(image_path) as stream:
             try:
                 pil_image = Image.open(stream)
                 if len(response) != 0:
-                    self.format_image(pil_image, response)
-                upload_pil_image_to_folder(pil_image, output_folder, image_path)
+                    formatted_image = self.format_image(pil_image, response)
+                else:
+                    formatted_image = pil_image
+                upload_pil_image_to_folder(formatted_image, output_folder, image_path)
                 result = True
             except (UnidentifiedImageError, OSError) as e:
                 logging.warning("Could not load image on path: " + image_path)
@@ -173,7 +175,7 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
             error_handling=error_handling,
             parallel_workers=parallel_workers,
         )
-        self.num_objects = num_objects
+        self.num_objects = int(num_objects)
         self.label_list_column = generate_unique("label_list", input_df.keys(), column_prefix)
         self.label_name_columns = [
             generate_unique("label_" + str(n + 1) + "_name", input_df.keys(), column_prefix) for n in range(num_objects)
@@ -243,6 +245,7 @@ class TextDetectionAPIFormatter(GenericAPIFormatter):
         input_df: pd.DataFrame,
         input_folder: dataiku.Folder = None,
         minimum_score: float = 0,
+        orientation_correction: bool = True,
         column_prefix: AnyStr = "text_api",
         error_handling: ErrorHandlingEnum = ErrorHandlingEnum.LOG,
         parallel_workers: int = DEFAULT_PARALLEL_WORKERS,
@@ -254,7 +257,9 @@ class TextDetectionAPIFormatter(GenericAPIFormatter):
             error_handling=error_handling,
             parallel_workers=parallel_workers,
         )
-        self.minimum_score = minimum_score
+        self.minimum_score = float(minimum_score)
+        self.orientation_correction = bool(orientation_correction)
+        self.orientation_column = generate_unique("orientation_correction", input_df.keys(), column_prefix)
         self.text_column_list = generate_unique("detections_list", input_df.keys(), column_prefix)
         self.text_column_concat = generate_unique("detections_concat", input_df.keys(), column_prefix)
         self._compute_column_description()
@@ -262,6 +267,7 @@ class TextDetectionAPIFormatter(GenericAPIFormatter):
     def _compute_column_description(self):
         self.column_description_dict[self.text_column_list] = "List of text detections from the API"
         self.column_description_dict[self.text_column_concat] = "Concatenated text detections from the API"
+        self.column_description_dict[self.orientation_column] = "Orientation correction detected by the API"
 
     def format_row(self, row: Dict) -> Dict:
         raw_response = row[self.api_column_names.response]
@@ -272,6 +278,8 @@ class TextDetectionAPIFormatter(GenericAPIFormatter):
         ]
         row[self.text_column_list] = ""
         row[self.text_column_concat] = ""
+        if self.orientation_correction:
+            row[self.orientation_column] = response.get("OrientationCorrection", "")
         if len(text_detections_filtered) != 0:
             row[self.text_column_list] = [t.get("DetectedText", "") for t in text_detections_filtered]
             row[self.text_column_concat] = " ".join(row[self.text_column_list])
@@ -279,17 +287,42 @@ class TextDetectionAPIFormatter(GenericAPIFormatter):
 
     def format_image(self, image: Image, response: Dict) -> Image:
         text_detections = response.get("TextDetections", [])
+        detected_orientation = response.get("OrientationCorrection", "")
         text_bounding_boxes = [
             t.get("Geometry", {}).get("BoundingBox", {})
             for t in text_detections
-            if t.get("Confidence") >= self.minimum_score
+            if t.get("Confidence") >= self.minimum_score and t.get("ParentId") is None
         ]
+        if self.orientation_correction:
+            if detected_orientation == "ROTATE_90":
+                image = image.transpose(Image.ROTATE_270)
+            elif detected_orientation == "ROTATE_180":
+                image = image.transpose(Image.ROTATE_180)
+            elif detected_orientation == "ROTATE_270":
+                image = image.transpose(Image.ROTATE_90)
         for bbox in text_bounding_boxes:
-            xmin = float(bbox.get("Left"))
-            ymin = float(bbox.get("Top"))
-            xmax = xmin + float(bbox.get("Width"))
-            ymax = ymin + float(bbox.get("Height"))
-            draw_bounding_box_pil_image(image, ymin, xmin, ymax, xmax)
+            if not self.orientation_correction or detected_orientation == "ROTATE_0":
+                ymin = bbox.get("Top")
+                xmin = bbox.get("Left")
+                ymax = bbox.get("Top") + bbox.get("Height")
+                xmax = bbox.get("Left") + bbox.get("Width")
+            else:
+                if detected_orientation == "ROTATE_90":
+                    ymin = bbox.get("Left")
+                    xmin = 1 - bbox.get("Top") + bbox.get("Height")
+                    ymax = ymin + bbox.get("Height")
+                    xmax = xmin + bbox.get("Width")
+                elif detected_orientation == "ROTATE_180":
+                    ymin = bbox.get("Left")
+                    xmin = 1 - bbox.get("Top") + bbox.get("Height")
+                    ymax = ymin + bbox.get("Height")
+                    xmax = xmin + bbox.get("Width")
+                elif detected_orientation == "ROTATE_270":
+                    ymin = bbox.get("Left")
+                    xmin = 1 - bbox.get("Top") + bbox.get("Height")
+                    ymax = ymin + bbox.get("Height")
+                    xmax = xmin + bbox.get("Width")
+            draw_bounding_box_pil_image(image=image, ymin=ymin, xmin=xmin, ymax=ymax, xmax=xmax)
         return image
 
 

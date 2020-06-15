@@ -41,10 +41,10 @@ api_configuration_preset = recipe_config.get("api_configuration_preset")
 api_quota_rate_limit = api_configuration_preset.get("api_quota_rate_limit")
 api_quota_period = api_configuration_preset.get("api_quota_period")
 parallel_workers = api_configuration_preset.get("parallel_workers")
-num_objects = int(recipe_config.get("num_objects", 1))
 minimum_score = int(recipe_config.get("minimum_score", 0) * 100)
 if minimum_score < 0 or minimum_score > 100:
     raise ValueError("Minimum confidence score must be between 0 and 1")
+orientation_correction = bool(recipe_config.get("orientation_correction"))
 error_handling = ErrorHandlingEnum[recipe_config.get("error_handling")]
 
 client = get_client(api_configuration_preset)
@@ -63,7 +63,7 @@ if len(input_df.index) == 0:
 
 @retry((RateLimitException, OSError), delay=api_quota_period, tries=5)
 @limits(calls=api_quota_rate_limit, period=api_quota_period)
-def call_api_text_detection(row: Dict, num_objects: int, minimum_score: int) -> AnyStr:
+def call_api_text_detection(row: Dict, minimum_score: int, orientation_correction: bool) -> AnyStr:
     image_path = row.get(IMAGE_PATH_COLUMN)
     if input_folder_is_s3:
         image_request = {"S3Object": {"Bucket": input_folder_bucket, "Name": input_folder_root_path + image_path}}
@@ -71,6 +71,10 @@ def call_api_text_detection(row: Dict, num_objects: int, minimum_score: int) -> 
         with input_folder.get_download_stream(image_path) as stream:
             image_request = {"Bytes": stream.read()}
     response = client.detect_text(Image=image_request)
+    if orientation_correction:
+        response["OrientationCorrection"] = client.recognize_celebrities(Image=image_request).get(
+            "OrientationCorrection", "ROTATE_0"
+        )
     return json.dumps(response)
 
 
@@ -81,14 +85,15 @@ df = api_parallelizer(
     column_prefix=column_prefix,
     parallel_workers=parallel_workers,
     error_handling=error_handling,
-    num_objects=num_objects,
     minimum_score=minimum_score,
+    orientation_correction=orientation_correction,
 )
 
 api_formatter = TextDetectionAPIFormatter(
     input_df=input_df,
     input_folder=input_folder,
     minimum_score=minimum_score,
+    orientation_correction=orientation_correction,
     column_prefix=column_prefix,
     error_handling=error_handling,
     parallel_workers=parallel_workers,
