@@ -4,6 +4,8 @@ import logging
 from typing import Dict, AnyStr
 from ratelimit import limits, RateLimitException
 from retry import retry
+from PIL import Image
+from io import BytesIO
 
 import dataiku
 from dataiku.customrecipe import get_recipe_config, get_input_names_for_role, get_output_names_for_role
@@ -11,6 +13,7 @@ import pandas as pd
 
 from amazon_rekognition_api_client import API_EXCEPTIONS, get_client, supported_image_format
 from plugin_io_utils import IMAGE_PATH_COLUMN, ErrorHandlingEnum, generate_path_list, set_column_description
+from plugin_image_utils import save_image_bytes, auto_rotate_image
 from api_parallelizer import api_parallelizer
 from amazon_rekognition_api_formatting import TextDetectionAPIFormatter
 
@@ -65,16 +68,25 @@ if len(input_df.index) == 0:
 @limits(calls=api_quota_rate_limit, period=api_quota_period)
 def call_api_text_detection(row: Dict, minimum_score: int, orientation_correction: bool) -> AnyStr:
     image_path = row.get(IMAGE_PATH_COLUMN)
+    pil_image = None
     if input_folder_is_s3:
         image_request = {"S3Object": {"Bucket": input_folder_bucket, "Name": input_folder_root_path + image_path}}
     else:
         with input_folder.get_download_stream(image_path) as stream:
             image_request = {"Bytes": stream.read()}
+            pil_image = Image.open(BytesIO(image_request["Bytes"]))
+    if orientation_correction:
+        detected_orientation = client.recognize_celebrities(Image=image_request).get("OrientationCorrection", "")
+        if pil_image is None:
+            with input_folder.get_download_stream(image_path) as stream:
+                pil_image = Image.open(stream)
+        (rotated_image, rotated) = auto_rotate_image(pil_image, detected_orientation)
+        if rotated:
+            logging.info("Corrected image orientation: {}".format(image_path))
+            image_request = {"Bytes": save_image_bytes(rotated_image, image_path).getvalue()}
     response = client.detect_text(Image=image_request)
     if orientation_correction:
-        response["OrientationCorrection"] = client.recognize_celebrities(Image=image_request).get(
-            "OrientationCorrection", "ROTATE_0"
-        )
+        response["OrientationCorrection"] = detected_orientation
     return json.dumps(response)
 
 

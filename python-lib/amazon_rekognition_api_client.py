@@ -4,12 +4,13 @@ from typing import AnyStr
 import boto3
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import BotoCoreError, ClientError
+from PIL import UnidentifiedImageError
 
 # ==============================================================================
 # CONSTANT DEFINITION
 # ==============================================================================
 
-API_EXCEPTIONS = (Boto3Error, BotoCoreError, ClientError)
+API_EXCEPTIONS = (Boto3Error, BotoCoreError, ClientError, UnidentifiedImageError)
 SUPPORTED_IMAGE_FORMATS = ["jpeg", "jpg", "png"]
 
 # ==============================================================================

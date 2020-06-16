@@ -4,6 +4,8 @@ import logging
 from typing import Dict, AnyStr
 from ratelimit import limits, RateLimitException
 from retry import retry
+from PIL import Image
+from io import BytesIO
 
 import dataiku
 from dataiku.customrecipe import get_recipe_config, get_input_names_for_role, get_output_names_for_role
@@ -11,6 +13,7 @@ import pandas as pd
 
 from amazon_rekognition_api_client import API_EXCEPTIONS, get_client, supported_image_format
 from plugin_io_utils import IMAGE_PATH_COLUMN, ErrorHandlingEnum, generate_path_list, set_column_description
+from plugin_image_utils import save_image_bytes, auto_rotate_image
 from api_parallelizer import api_parallelizer
 from amazon_rekognition_api_formatting import ObjectDetectionLabelingAPIFormatter
 
@@ -47,6 +50,7 @@ if num_objects < 1:
 minimum_score = int(recipe_config.get("minimum_score", 0) * 100)
 if minimum_score < 0 or minimum_score > 100:
     raise ValueError("Minimum confidence score must be between 0 and 1")
+orientation_correction = bool(recipe_config.get("orientation_correction"))
 error_handling = ErrorHandlingEnum[recipe_config.get("error_handling")]
 
 client = get_client(api_configuration_preset)
@@ -65,14 +69,27 @@ if len(input_df.index) == 0:
 
 @retry((RateLimitException, OSError), delay=api_quota_period, tries=5)
 @limits(calls=api_quota_rate_limit, period=api_quota_period)
-def call_api_object_detection(row: Dict, num_objects: int, minimum_score: int) -> AnyStr:
+def call_api_object_detection(row: Dict, num_objects: int, minimum_score: int, orientation_correction: bool) -> AnyStr:
     image_path = row.get(IMAGE_PATH_COLUMN)
+    pil_image = None
     if input_folder_is_s3:
         image_request = {"S3Object": {"Bucket": input_folder_bucket, "Name": input_folder_root_path + image_path}}
     else:
         with input_folder.get_download_stream(image_path) as stream:
             image_request = {"Bytes": stream.read()}
+            pil_image = Image.open(BytesIO(image_request["Bytes"]))
+    if orientation_correction:
+        detected_orientation = client.recognize_celebrities(Image=image_request).get("OrientationCorrection", "")
+        if pil_image is None:
+            with input_folder.get_download_stream(image_path) as stream:
+                pil_image = Image.open(stream)
+        (rotated_image, rotated) = auto_rotate_image(pil_image, detected_orientation)
+        if rotated:
+            logging.info("Corrected image orientation: {}".format(image_path))
+            image_request = {"Bytes": save_image_bytes(rotated_image, image_path).getvalue()}
     response = client.detect_labels(Image=image_request, MaxLabels=num_objects, MinConfidence=minimum_score)
+    if orientation_correction:
+        response["OrientationCorrection"] = detected_orientation
     return json.dumps(response)
 
 
@@ -85,11 +102,13 @@ df = api_parallelizer(
     error_handling=error_handling,
     num_objects=num_objects,
     minimum_score=minimum_score,
+    orientation_correction=orientation_correction,
 )
 
 api_formatter = ObjectDetectionLabelingAPIFormatter(
     input_df=input_df,
     num_objects=num_objects,
+    orientation_correction=orientation_correction,
     input_folder=input_folder,
     column_prefix=column_prefix,
     error_handling=error_handling,
