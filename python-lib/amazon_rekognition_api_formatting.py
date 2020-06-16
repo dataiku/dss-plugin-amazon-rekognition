@@ -200,8 +200,6 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
     def format_row(self, row: Dict) -> Dict:
         raw_response = row[self.api_column_names.response]
         response = safe_json_loads(raw_response, self.error_handling)
-        if self.orientation_correction:
-            row[self.orientation_column] = response.get("OrientationCorrection", "")
         row[self.label_list_column] = ""
         labels = sorted(response.get("Labels", []), key=lambda x: x.get("Confidence"), reverse=True)
         if len(labels) != 0:
@@ -213,6 +211,8 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
             else:
                 row[self.label_name_columns[n]] = ""
                 row[self.label_score_columns[n]] = None
+        if self.orientation_correction:
+            row[self.orientation_column] = response.get("OrientationCorrection", "")
         return row
 
     def format_image(self, image: Image, response: Dict) -> Image:
@@ -286,11 +286,11 @@ class TextDetectionAPIFormatter(GenericAPIFormatter):
         ]
         row[self.text_column_list] = ""
         row[self.text_column_concat] = ""
-        if self.orientation_correction:
-            row[self.orientation_column] = response.get("OrientationCorrection", "")
         if len(text_detections_filtered) != 0:
             row[self.text_column_list] = [t.get("DetectedText", "") for t in text_detections_filtered]
             row[self.text_column_concat] = " ".join(row[self.text_column_list])
+        if self.orientation_correction:
+            row[self.orientation_column] = response.get("OrientationCorrection", "")
         return row
 
     def format_image(self, image: Image, response: Dict) -> Image:
