@@ -7,9 +7,7 @@ import dataiku
 from enum import Enum
 from typing import AnyStr, List, NamedTuple, Dict
 from collections import OrderedDict, namedtuple
-from io import BytesIO
 
-from PIL import Image
 
 # ==============================================================================
 # CONSTANT DEFINITION
@@ -45,20 +43,6 @@ def generate_path_list(folder: dataiku.Folder):
         partition = folder.read_partitions[0]
     path_list = folder.list_paths_in_partition(partition)
     return path_list
-
-
-def upload_pil_image_to_folder(pil_image: Image, folder: dataiku.Folder, path: AnyStr):
-    image_bytes = BytesIO()
-    file_extension = path.split(".")[-1].upper()
-    if file_extension in {"JPG", "JPEG"}:
-        pil_image.save(
-            image_bytes, format="JPEG", quality=100, subsampling="keep", icc_profile=pil_image.info.get("icc_profile")
-        )
-    elif file_extension == "PNG":
-        pil_image.save(image_bytes, format="PNG", optimize=True)
-    else:
-        pil_image.save(image_bytes, format=file_extension)
-    folder.upload_stream(path, image_bytes.getvalue())
 
 
 def generate_unique(name: AnyStr, existing_names: List, prefix: AnyStr = COLUMN_PREFIX) -> AnyStr:

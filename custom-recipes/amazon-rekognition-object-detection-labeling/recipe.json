@@ -84,6 +84,15 @@
             "maxD": 1
         },
         {
+            "name": "orientation_correction",
+            "label": "Orientation correction",
+            "type": "BOOLEAN",
+            "defaultValue": false,
+            "visibilityCondition": "model.expert",
+            "mandatory": true,
+            "description": "Detect and correct image orientation at additional cost (one API call per image)"
+        },
+        {
             "name": "error_handling",
             "label": "Error handling",
             "type": "SELECT",

@@ -18,11 +18,9 @@ from plugin_io_utils import (
     generate_unique,
     safe_json_loads,
     move_api_columns_to_end,
-    upload_pil_image_to_folder,
 )
 from api_parallelizer import DEFAULT_PARALLEL_WORKERS
-from plugin_image_utils import draw_bounding_box_pil_image
-
+from plugin_image_utils import save_image_bytes, auto_rotate_image, draw_bounding_box_pil_image
 
 # ==============================================================================
 # CONSTANT DEFINITION
@@ -109,16 +107,19 @@ class GenericAPIFormatter:
     def format_image(self, image: Image, response: Dict) -> Image:
         return image
 
-    def format_save_image(self, output_folder: dataiku.Folder, image_path: AnyStr, response: Dict):
+    def format_save_image(self, output_folder: dataiku.Folder, image_path: AnyStr, response: Dict) -> bool:
         result = False
         with self.input_folder.get_download_stream(image_path) as stream:
             try:
                 pil_image = Image.open(stream)
                 if len(response) != 0:
-                    self.format_image(pil_image, response)
-                upload_pil_image_to_folder(pil_image, output_folder, image_path)
+                    formatted_image = self.format_image(pil_image, response)
+                else:
+                    formatted_image = pil_image.copy()
+                image_bytes = save_image_bytes(formatted_image, image_path)
+                output_folder.upload_stream(image_path, image_bytes.getvalue())
                 result = True
-            except (UnidentifiedImageError, OSError) as e:
+            except (UnidentifiedImageError, TypeError, OSError) as e:
                 logging.warning("Could not load image on path: " + image_path)
                 if self.error_handling == ErrorHandlingEnum.FAIL:
                     raise e
@@ -161,6 +162,7 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
         self,
         input_df: pd.DataFrame,
         num_objects: int,
+        orientation_correction: bool = True,
         input_folder: dataiku.Folder = None,
         column_prefix: AnyStr = "object_api",
         error_handling: ErrorHandlingEnum = ErrorHandlingEnum.LOG,
@@ -173,7 +175,9 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
             error_handling=error_handling,
             parallel_workers=parallel_workers,
         )
-        self.num_objects = num_objects
+        self.num_objects = int(num_objects)
+        self.orientation_correction = bool(orientation_correction)
+        self.orientation_column = generate_unique("orientation_correction", input_df.keys(), column_prefix)
         self.label_list_column = generate_unique("label_list", input_df.keys(), column_prefix)
         self.label_name_columns = [
             generate_unique("label_" + str(n + 1) + "_name", input_df.keys(), column_prefix) for n in range(num_objects)
@@ -186,6 +190,7 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
 
     def _compute_column_description(self):
         self.column_description_dict[self.label_list_column] = "List of object labels from the API"
+        self.column_description_dict[self.orientation_column] = "Orientation correction detected by the API"
         for n in range(self.num_objects):
             label_column = self.label_name_columns[n]
             score_column = self.label_score_columns[n]
@@ -206,6 +211,8 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
             else:
                 row[self.label_name_columns[n]] = ""
                 row[self.label_score_columns[n]] = None
+        if self.orientation_correction:
+            row[self.orientation_column] = response.get("OrientationCorrection", "")
         return row
 
     def format_image(self, image: Image, response: Dict) -> Image:
@@ -218,13 +225,16 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
             for label in response.get("Labels", [])
             for instance in label.get("Instances", [])
         ]
+        if self.orientation_correction:
+            detected_orientation = response.get("OrientationCorrection", "")
+            (image, rotated) = auto_rotate_image(image, detected_orientation)
         bounding_box_list_dict = sorted(bounding_box_list_dict, key=lambda x: x.get("confidence"))
         for bounding_box_dict in bounding_box_list_dict:
             bbox_text = "{} - {:.1%} ".format(bounding_box_dict["name"], bounding_box_dict["confidence"])
-            xmin = float(bounding_box_dict["bbox_dict"].get("Left"))
-            ymin = float(bounding_box_dict["bbox_dict"].get("Top"))
-            xmax = xmin + float(bounding_box_dict["bbox_dict"].get("Width"))
-            ymax = ymin + float(bounding_box_dict["bbox_dict"].get("Height"))
+            ymin = bounding_box_dict["bbox_dict"].get("Top")
+            xmin = bounding_box_dict["bbox_dict"].get("Left")
+            ymax = ymin + bounding_box_dict["bbox_dict"].get("Height")
+            xmax = xmin + bounding_box_dict["bbox_dict"].get("Width")
             draw_bounding_box_pil_image(image, ymin, xmin, ymax, xmax, bbox_text)
         return image
 
@@ -243,6 +253,7 @@ class TextDetectionAPIFormatter(GenericAPIFormatter):
         input_df: pd.DataFrame,
         input_folder: dataiku.Folder = None,
         minimum_score: float = 0,
+        orientation_correction: bool = True,
         column_prefix: AnyStr = "text_api",
         error_handling: ErrorHandlingEnum = ErrorHandlingEnum.LOG,
         parallel_workers: int = DEFAULT_PARALLEL_WORKERS,
@@ -254,7 +265,9 @@ class TextDetectionAPIFormatter(GenericAPIFormatter):
             error_handling=error_handling,
             parallel_workers=parallel_workers,
         )
-        self.minimum_score = minimum_score
+        self.minimum_score = float(minimum_score)
+        self.orientation_correction = bool(orientation_correction)
+        self.orientation_column = generate_unique("orientation_correction", input_df.keys(), column_prefix)
         self.text_column_list = generate_unique("detections_list", input_df.keys(), column_prefix)
         self.text_column_concat = generate_unique("detections_concat", input_df.keys(), column_prefix)
         self._compute_column_description()
@@ -262,6 +275,7 @@ class TextDetectionAPIFormatter(GenericAPIFormatter):
     def _compute_column_description(self):
         self.column_description_dict[self.text_column_list] = "List of text detections from the API"
         self.column_description_dict[self.text_column_concat] = "Concatenated text detections from the API"
+        self.column_description_dict[self.orientation_column] = "Orientation correction detected by the API"
 
     def format_row(self, row: Dict) -> Dict:
         raw_response = row[self.api_column_names.response]
@@ -275,6 +289,8 @@ class TextDetectionAPIFormatter(GenericAPIFormatter):
         if len(text_detections_filtered) != 0:
             row[self.text_column_list] = [t.get("DetectedText", "") for t in text_detections_filtered]
             row[self.text_column_concat] = " ".join(row[self.text_column_list])
+        if self.orientation_correction:
+            row[self.orientation_column] = response.get("OrientationCorrection", "")
         return row
 
     def format_image(self, image: Image, response: Dict) -> Image:
@@ -282,14 +298,17 @@ class TextDetectionAPIFormatter(GenericAPIFormatter):
         text_bounding_boxes = [
             t.get("Geometry", {}).get("BoundingBox", {})
             for t in text_detections
-            if t.get("Confidence") >= self.minimum_score
+            if t.get("Confidence") >= self.minimum_score and t.get("ParentId") is None
         ]
+        if self.orientation_correction:
+            detected_orientation = response.get("OrientationCorrection", "")
+            (image, rotated) = auto_rotate_image(image, detected_orientation)
         for bbox in text_bounding_boxes:
-            xmin = float(bbox.get("Left"))
-            ymin = float(bbox.get("Top"))
-            xmax = xmin + float(bbox.get("Width"))
-            ymax = ymin + float(bbox.get("Height"))
-            draw_bounding_box_pil_image(image, ymin, xmin, ymax, xmax)
+            ymin = bbox.get("Top")
+            xmin = bbox.get("Left")
+            ymax = bbox.get("Top") + bbox.get("Height")
+            xmax = bbox.get("Left") + bbox.get("Width")
+            draw_bounding_box_pil_image(image=image, ymin=ymin, xmin=xmin, ymax=ymax, xmax=xmax)
         return image
 
 
