@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import logging
 from typing import List, AnyStr
 
 import numpy as np
@@ -25,7 +26,12 @@ def save_image_bytes(pil_image: Image, path: AnyStr) -> bytes:
     image_bytes = BytesIO()
     file_extension = path.split(".")[-1].upper()
     if file_extension in {"JPG", "JPEG"}:
-        pil_image.save(image_bytes, format="JPEG", quality=100, exif=pil_image.getexif())
+        exif = None
+        try:
+            exif = pil_image.getexif()
+        except (IndexError, ValueError) as e:
+            logging.warn("Invalid EXIF data, throwing exception: {}".format(e))
+        pil_image.save(image_bytes, format="JPEG", quality=100, exif=exif)
     elif file_extension == "PNG":
         pil_image.save(image_bytes, format="PNG", optimize=True)
     else:
