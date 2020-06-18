@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import os
-import logging
 from typing import List, AnyStr
 
 import numpy as np
@@ -26,12 +25,7 @@ def save_image_bytes(pil_image: Image, path: AnyStr) -> bytes:
     image_bytes = BytesIO()
     file_extension = path.split(".")[-1].upper()
     if file_extension in {"JPG", "JPEG"}:
-        exif = None
-        try:
-            exif = pil_image.getexif()
-        except (IndexError, ValueError) as e:
-            logging.warn("Invalid EXIF data, throwing exception: {}".format(e))
-        pil_image.save(image_bytes, format="JPEG", quality=100, exif=exif)
+        pil_image.save(image_bytes, format="JPEG", quality=100, exif=pil_image.getexif())
     elif file_extension == "PNG":
         pil_image.save(image_bytes, format="PNG", optimize=True)
     else:
@@ -40,6 +34,7 @@ def save_image_bytes(pil_image: Image, path: AnyStr) -> bytes:
 
 
 def auto_rotate_image(image: Image, detected_orientation: AnyStr) -> (Image, bool):
+    (rotated_image, rotated) = (image.copy(), False)
     if detected_orientation == "ROTATE_90":
         (rotated_image, rotated) = (image.transpose(Image.ROTATE_270), True)
     elif detected_orientation == "ROTATE_180":
@@ -48,22 +43,20 @@ def auto_rotate_image(image: Image, detected_orientation: AnyStr) -> (Image, boo
         (rotated_image, rotated) = (image.transpose(Image.ROTATE_90), True)
     else:
         exif = image.getexif()
-        orientation = exif.get(0x0112)
-        method = {
-            2: Image.FLIP_LEFT_RIGHT,
-            3: Image.ROTATE_180,
-            4: Image.FLIP_TOP_BOTTOM,
-            5: Image.TRANSPOSE,
-            6: Image.ROTATE_270,
-            7: Image.TRANSVERSE,
-            8: Image.ROTATE_90,
-        }.get(orientation)
-        if method is not None:
-            (rotated_image, rotated) = (image.transpose(method), True)
-            del exif[0x0112]
-            rotated_image.info["exif"] = exif.tobytes()
-        else:
-            (rotated_image, rotated) = (image.copy(), False)
+        if exif is not None:
+            orientation = exif.get(0x0112)
+            method = {
+                2: Image.FLIP_LEFT_RIGHT,
+                3: Image.ROTATE_180,
+                4: Image.FLIP_TOP_BOTTOM,
+                5: Image.TRANSPOSE,
+                6: Image.ROTATE_270,
+                7: Image.TRANSVERSE,
+                8: Image.ROTATE_90,
+            }.get(orientation)
+            if method is not None:
+                (rotated_image, rotated) = (image.transpose(method), True)
+                rotated_image.info["exif"] = None  # to avoid weird problem with corrupt EXIF data
     return (rotated_image, rotated)
 
 
