@@ -25,13 +25,7 @@ def save_image_bytes(pil_image: Image, path: AnyStr) -> bytes:
     image_bytes = BytesIO()
     file_extension = path.split(".")[-1].upper()
     if file_extension in {"JPG", "JPEG"}:
-        pil_image.save(
-            image_bytes,
-            format="JPEG",
-            quality=100,
-            exif=pil_image.getexif(),
-            icc_profile=pil_image.info.get("icc_profile"),
-        )
+        pil_image.save(image_bytes, format="JPEG", quality=100, exif=pil_image.getexif())
     elif file_extension == "PNG":
         pil_image.save(image_bytes, format="PNG", optimize=True)
     else:
