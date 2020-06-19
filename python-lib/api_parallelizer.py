@@ -39,10 +39,12 @@ def api_call_single_row(
 ) -> Dict:
     """
     Wraps a single-row API calling function to:
-    - ensure it has a 'row' parameter which is a dict (for batches of rows, use the api_call_batch function below)
+    - ensure it has a 'row' parameter which is a dict
+      (for batches of rows, use the api_call_batch function below)
     - return the row with a new 'response' key containing the function result
     - handles errors from the function with two methods:
-        * (default) do not fail on API-related exceptions, just log it and return the row with new error keys
+        * (default) do not fail on API-related exceptions, just log it
+        and return the row with new error keys
         * fail if there is an error and raise it
     """
     if error_handling == ErrorHandlingEnum.FAIL:
@@ -56,10 +58,12 @@ def api_call_single_row(
             row[api_column_names.response] = response
         except api_exceptions as e:
             logging.warning(str(e))
-            module = str(inspect.getmodule(e).__name__)
-            error_name = str(type(e).__qualname__)
+            error_type = str(type(e).__qualname__)
+            module = inspect.getmodule(e)
+            if module is not None:
+                error_type = str(module.__name__) + "." + error_type
             row[api_column_names.error_message] = str(e)
-            row[api_column_names.error_type] = ".".join([module, error_name])
+            row[api_column_names.error_type] = error_type
             row[api_column_names.error_raw] = str(e.args)
     return row
 
@@ -77,9 +81,11 @@ def api_call_batch(
     """
     Wraps a batch API calling function to:
     - ensure it has a 'batch' parameter which is a list of dict
-    - add response and error keys to the batch using the batch_api_response_parser function
+    - return the batch with a new 'response' key in each dict
+      containing the function result
     - handles errors from the function with two methods:
         * (default) do not fail on API-related exceptions, just log it
+        and return the batch with new error keys in each dict (using batch_api_parser)
         * fail if there is an error and raise it
     """
     if error_handling == ErrorHandlingEnum.FAIL:
@@ -94,12 +100,14 @@ def api_call_batch(
             batch = batch_api_response_parser(batch=batch, response=response, api_column_names=api_column_names)
         except api_exceptions as e:
             logging.warning(str(e))
-            module = str(inspect.getmodule(e).__name__)
-            error_name = str(type(e).__qualname__)
+            error_type = str(type(e).__qualname__)
+            module = inspect.getmodule(e)
+            if module is not None:
+                error_type = str(module.__name__) + "." + error_type
             for row in batch:
                 row[api_column_names.response] = ""
                 row[api_column_names.error_message] = str(e)
-                row[api_column_names.error_type] = ".".join([module, error_name])
+                row[api_column_names.error_type] = error_type
                 row[api_column_names.error_raw] = str(e.args)
     return batch
 
@@ -113,7 +121,8 @@ def convert_api_results_to_df(
 ) -> pd.DataFrame:
     """
     Helper function to the "api_parallelizer" main function.
-    Combine API results (list of dict) with input dataframe, and convert it to a dataframe.
+    Combine API results (list of dict) with input dataframe,
+    and convert it to a dataframe.
     """
     if error_handling == ErrorHandlingEnum.FAIL:
         columns_to_exclude = [v for k, v in api_column_names._asdict().items() if "error" in k]
