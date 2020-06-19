@@ -126,6 +126,7 @@ class GenericAPIFormatter:
         return result
 
     def format_save_images(self, output_folder: dataiku.Folder):
+        output_folder.clear()
         df_iterator = (i[1].to_dict() for i in self.output_df.iterrows())
         len_iterator = len(self.output_df.index)
         logging.info("Saving bounding boxes to output folder...")
