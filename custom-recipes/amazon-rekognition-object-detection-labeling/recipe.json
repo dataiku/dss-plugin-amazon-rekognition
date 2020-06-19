@@ -90,7 +90,7 @@
             "defaultValue": false,
             "visibilityCondition": "model.expert",
             "mandatory": true,
-            "description": "Detect and correct image orientation at additional cost (one API call per image)"
+            "description": "Experimental - detect and correct image orientation at additional cost (one API call per image)"
         },
         {
             "name": "error_handling",
