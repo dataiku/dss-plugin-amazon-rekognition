@@ -4,17 +4,18 @@
 # see https://docs.pytest.org for more information
 
 import sys
-import os
 import json
+import os
+from pathlib import Path
 from typing import AnyStr, Dict
 from enum import Enum
 
 import pandas as pd
 from boto3.exceptions import Boto3Error
 
-# Add stuff to the path to enable exec outside of DSS
-plugin_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.append(os.path.join(plugin_root, "python-lib"))
+# Add python-lib to the path to enable exec outside of DSS
+plugin_root_path = Path(__file__).parents[3]
+sys.path.append(os.path.join(plugin_root_path, "python-lib"))
 from api_parallelizer import api_parallelizer  # noqa
 
 
@@ -26,7 +27,7 @@ API_EXCEPTIONS = (Boto3Error, ValueError)
 COLUMN_PREFIX = "test_api"
 
 
-class TestCaseEnum(Enum):
+class APICaseEnum(Enum):
     SUCCESS = {
         "test_api_response": '{"result": "Great success"}',
         "test_api_error_message": "",
@@ -45,7 +46,7 @@ class TestCaseEnum(Enum):
 
 
 INPUT_COLUMN = "test_case"
-TEST_INPUT_DF = pd.DataFrame({INPUT_COLUMN: list(TestCaseEnum)})
+TEST_INPUT_DF = pd.DataFrame({INPUT_COLUMN: list(APICaseEnum)})
 
 # ==============================================================================
 # CLASS AND FUNCTION DEFINITION
@@ -55,14 +56,14 @@ TEST_INPUT_DF = pd.DataFrame({INPUT_COLUMN: list(TestCaseEnum)})
 def call_test_api(row: Dict, api_function_param: int) -> AnyStr:
     test_case = row.get(INPUT_COLUMN)
     response = {}
-    if test_case == TestCaseEnum.SUCCESS:
+    if test_case == APICaseEnum.SUCCESS:
         response = {"result": "Great success"}
-    elif test_case == TestCaseEnum.INVALID_INPUT:
+    elif test_case == APICaseEnum.INVALID_INPUT:
         try:
             response = {"result": int(api_function_param)}
         except ValueError as e:
             raise e
-    elif test_case == TestCaseEnum.API_FAILURE:
+    elif test_case == APICaseEnum.API_FAILURE:
         raise Boto3Error
     return json.dumps(response)
 
@@ -76,6 +77,6 @@ def test_api_parallelizer():
         api_function_param="invalid_integer",
     )
     api_columns = df.keys()[1:]
-    for test_case in TestCaseEnum:
+    for test_case in APICaseEnum:
         output_dict = df.loc[df[INPUT_COLUMN] == test_case, api_columns].to_dict(orient="records")[0]
         assert output_dict == test_case.value

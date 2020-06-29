@@ -37,6 +37,24 @@ submit: plugin
 	@curl -H "Authorization: Bearer ${DKU_PLUGIN_DEVELOPER_TOKEN}>" -X PUT ${artifact_repo_target} -T dist/${archive_file_name}
 	@echo "[SUCCESS] Publishing archive to artifact repository: Done!"
 
+unit-tests:
+	@echo "[START] Running unit tests..."
+	@( \
+		python3 -m venv env/; \
+		source env/bin/activate; \
+		pip install -r tests/python/requirements.txt; \
+		pip install -r code-env/python/spec/requirements.txt; \
+		python3 -m pytest tests/python/unit/; \
+		source deactivate; \
+	)
+	@echo "[SUCCESS] Running unit tests: Done!"
+
+integration-tests:
+	@echo "[START] Running integration tests..."
+	# TODO add integration tests in v2
+	@echo "[SUCCESS] Running integration tests: Done!"
+
+tests: unit-tests integration-tests
 
 dist-clean:
 	rm -rf dist

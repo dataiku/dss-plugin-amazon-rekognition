@@ -10,7 +10,8 @@ from dataiku.customrecipe import get_recipe_config, get_input_names_for_role, ge
 import pandas as pd
 
 from amazon_rekognition_api_client import API_EXCEPTIONS, get_client, supported_image_format
-from plugin_io_utils import IMAGE_PATH_COLUMN, ErrorHandlingEnum, generate_path_list, set_column_description
+from plugin_io_utils import IMAGE_PATH_COLUMN, ErrorHandlingEnum
+from dku_io_utils import generate_path_list, set_column_description
 from api_parallelizer import api_parallelizer
 from amazon_rekognition_api_formatting import (
     UnsafeContentCategoryLevelEnum,
