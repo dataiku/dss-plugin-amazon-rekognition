@@ -21,7 +21,7 @@
     "outputRoles": [
         {
             "name": "output_dataset",
-            "label": "Output dataset",
+            "label": "Label dataset",
             "description": "Dataset with object labels for each image",
             "arity": "UNARY",
             "required": true,

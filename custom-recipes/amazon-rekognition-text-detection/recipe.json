@@ -21,7 +21,7 @@
     "outputRoles": [
         {
             "name": "output_dataset",
-            "label": "Output dataset",
+            "label": "Detected text dataset",
             "description": "Dataset with detected text for each image",
             "arity": "UNARY",
             "required": true,
