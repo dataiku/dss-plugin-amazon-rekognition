@@ -15,5 +15,5 @@ jobs:
 workflows:
   main:
     jobs:
-      - context: dataiku-rd-team-ecosystem
-      - build-and-test
+      - build-and-test:
+        - context: dataiku-rd-team-ecosystem
