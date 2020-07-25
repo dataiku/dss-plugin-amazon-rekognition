@@ -9,7 +9,7 @@ jobs:
     steps:
       - checkout
       - run:
-          command: ./make tests
+          command: ../make tests
           name: Test
 
 workflows:
