@@ -2,13 +2,19 @@
     "id": "amazon-rekognition",
     "version": "1.0.0",
     "meta": {
-        "label": "Amazon Rekognition",
-        "description": "Use AWS to process images (object detection). No training required.",
-        "author": "Dataiku",
-        "icon": "icon-cloud",
+        "label": "Amazon Rekognition - Image",
+        "category": "Computer Vision",
+        "description": "Use Amazon Rekognition APIs to perform Object Detection & Labeling, Text Detection and Unsafe Content Moderation",
+        "author": "Dataiku (Alex COMBESSIE and Joachim ZENTICI)",
+        "icon": "icon-amazon-rekognition icon-cloud",
         "licenseInfo": "Apache Software License",
-        "url": "https://www.dataiku.com/dss/plugins/info/amazon-rekognition.html",
-        "tags": ["AWS", "Cloud", "Images"],
-        "supportLevel": "NOT_SUPPORTED"
+        "url": "https://www.dataiku.com/product/plugins/amazon-rekognition/",
+        "tags": [
+            "AWS",
+            "Cloud",
+            "Image",
+            "Computer Vision"
+        ],
+        "supportLevel": "TIER2_SUPPORT"
     }
 }

@@ -1,0 +1,239 @@
+{
+    "meta": {
+        "label": "Unsafe Content Moderation",
+        "description": "Detect unsafe content (nudity, violence, etc.) in images",
+        "icon": "icon-amazon-rekognition icon-cloud",
+        "displayOrderRank": 3
+    },
+    "kind": "PYTHON",
+    "selectableFromFolder": "input_folder",
+    "inputRoles": [
+        {
+            "name": "input_folder",
+            "label": "Image folder",
+            "description": "Folder containing images",
+            "arity": "UNARY",
+            "required": true,
+            "acceptsDataset": false,
+            "acceptsManagedFolder": true
+        }
+    ],
+    "outputRoles": [
+        {
+            "name": "output_dataset",
+            "label": "Label dataset",
+            "description": "Dataset with moderation labels for each image",
+            "arity": "UNARY",
+            "required": true,
+            "acceptsDataset": true
+        }
+    ],
+    "params": [
+        {
+            "name": "separator_configuration",
+            "label": "Configuration",
+            "type": "SEPARATOR"
+        },
+        {
+            "name": "api_configuration_preset",
+            "label": "API configuration preset",
+            "type": "PRESET",
+            "parameterSetId": "api-configuration",
+            "mandatory": true
+        },
+        {
+            "name": "separator_advanced",
+            "label": "Advanced",
+            "type": "SEPARATOR"
+        },
+        {
+            "name": "expert",
+            "label": "Expert mode",
+            "type": "BOOLEAN",
+            "defaultValue": false
+        },
+        {
+            "name": "category_level",
+            "label": "Content category level",
+            "type": "SELECT",
+            "visibilityCondition": "model.expert",
+            "selectChoices": [
+                {
+                    "value": "TOP",
+                    "label": "Top-level (simple)"
+                },
+                {
+                    "value": "SECOND",
+                    "label": "Second-level (detailed)"
+                }
+            ],
+            "defaultValue": "TOP",
+            "mandatory": true,
+            "description": "Level of content categories to extract according to the Amazon Rekognition hierarchical taxonomy"
+        },
+        {
+            "name": "content_categories_top_level",
+            "label": "Top-level categories",
+            "type": "MULTISELECT",
+            "description": "List of top-level content categories",
+            "mandatory": true,
+            "visibilityCondition": "model.expert && model.category_level == 'TOP'",
+            "selectChoices": [
+                {
+                    "value": "EXPLICIT_NUDITY",
+                    "label": "Explicit Nudity"
+                },
+                {
+                    "value": "SUGGESTIVE",
+                    "label": "Suggestive"
+                },
+                {
+                    "value": "VIOLENCE",
+                    "label": "Violence"
+                },
+                {
+                    "value": "VISUALLY_DISTURBING",
+                    "label": "Visually Disturbing"
+                }
+            ],
+            "defaultValue": [
+                "EXPLICIT_NUDITY",
+                "SUGGESTIVE",
+                "VIOLENCE",
+                "VISUALLY_DISTURBING"
+            ]
+        },
+        {
+            "name": "content_categories_second_level",
+            "label": "Second-level categories",
+            "type": "MULTISELECT",
+            "visibilityCondition": "model.expert && model.category_level == 'SECOND'",
+            "description": "List of second-level content categories",
+            "mandatory": true,
+            "selectChoices": [
+                {
+                    "value": "NUDITY",
+                    "label": "Nudity"
+                },
+                {
+                    "value": "GRAPHIC_MALE_NUDITY",
+                    "label": "Graphic Male Nudity"
+                },
+                {
+                    "value": "GRAPHIC_FEMALE_NUDITY",
+                    "label": "Graphic Female Nudity"
+                },
+                {
+                    "value": "SEXUAL_ACTIVITY",
+                    "label": "Sexual Activity"
+                },
+                {
+                    "value": "ILLUSTRATED_NUDITY_OR_SEXUAL_ACTIVITY",
+                    "label": "Illustrated Nudity Or Sexual Activity"
+                },
+                {
+                    "value": "ADULT_TOYS",
+                    "label": "Adult Toys"
+                },
+                {
+                    "value": "FEMALE_SWIMWEAR_OR_UNDERWEAR",
+                    "label": "Female Swimwear Or Underwear"
+                },
+                {
+                    "value": "MALE_SWIMWEAR_OR_UNDERWEAR",
+                    "label": "Male Swimwear Or Underwear"
+                },
+                {
+                    "value": "PARTIAL_NUDITY",
+                    "label": "Partial Nudity"
+                },
+                {
+                    "value": "REVEALING_CLOTHES",
+                    "label": "Revealing Clothes"
+                },
+                {
+                    "value": "GRAPHIC_VIOLENCE_OR_GORE",
+                    "label": "Graphic Violence Or Gore"
+                },
+                {
+                    "value": "PHYSICAL_VIOLENCE",
+                    "label": "Physical Violence"
+                },
+                {
+                    "value": "WEAPON_VIOLENCE",
+                    "label": "Weapon Violence"
+                },
+                {
+                    "value": "WEAPONS",
+                    "label": "Weapons"
+                },
+                {
+                    "value": "SELF_INJURY",
+                    "label": "Self Injury"
+                },
+                {
+                    "value": "EMACIATED_BODIES",
+                    "label": "Emaciated Bodies"
+                },
+                {
+                    "value": "CORPSES",
+                    "label": "Corpses"
+                },
+                {
+                    "value": "HANGING",
+                    "label": "Hanging"
+                }
+            ],
+            "defaultValue": [
+                "NUDITY",
+                "GRAPHIC_MALE_NUDITY",
+                "GRAPHIC_FEMALE_NUDITY",
+                "SEXUAL_ACTIVITY",
+                "ILLUSTRATED_NUDITY_OR_SEXUAL_ACTIVITY",
+                "ADULT_TOYS",
+                "FEMALE_SWIMWEAR_OR_UNDERWEAR",
+                "MALE_SWIMWEAR_OR_UNDERWEAR",
+                "PARTIAL_NUDITY",
+                "REVEALING_CLOTHES",
+                "GRAPHIC_VIOLENCE_OR_GORE",
+                "PHYSICAL_VIOLENCE",
+                "WEAPON_VIOLENCE",
+                "WEAPONS",
+                "SELF_INJURY",
+                "EMACIATED_BODIES",
+                "CORPSES",
+                "HANGING"
+            ]
+        },
+        {
+            "name": "minimum_score",
+            "label": "Minimum score",
+            "description": "Minimum confidence score (from 0 to 1) for the content to be detected",
+            "visibilityCondition": "model.expert",
+            "type": "DOUBLE",
+            "mandatory": true,
+            "defaultValue": 0.5,
+            "minD": 0,
+            "maxD": 1
+        },
+        {
+            "name": "error_handling",
+            "label": "Error handling",
+            "type": "SELECT",
+            "visibilityCondition": "model.expert",
+            "selectChoices": [
+                {
+                    "value": "FAIL",
+                    "label": "Fail"
+                },
+                {
+                    "value": "LOG",
+                    "label": "Log"
+                }
+            ],
+            "defaultValue": "LOG",
+            "mandatory": true,
+            "description": "Log API errors to the output or fail with an exception on any API error"
+        }
+    ]
+}
