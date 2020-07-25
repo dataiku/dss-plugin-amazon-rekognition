@@ -6,6 +6,7 @@ orbs:
 jobs:
   build-and-test:
     executor: python/default
+    context: dataiku-rd-team-ecosystem
     steps:
       - checkout
       - run:
