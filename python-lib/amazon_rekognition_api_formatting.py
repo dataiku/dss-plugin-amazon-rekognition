@@ -230,7 +230,7 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
         if self.orientation_correction:
             detected_orientation = response.get("OrientationCorrection", "")
             (image, rotated) = auto_rotate_image(image, detected_orientation)
-        bounding_box_list_dict = sorted(bounding_box_list_dict, key=lambda x: x.get("confidence"))
+        bounding_box_list_dict = sorted(bounding_box_list_dict, key=lambda x: x.get("confidence", 0), reverse=True)
         for bounding_box_dict in bounding_box_list_dict:
             bbox_text = "{} - {:.1%} ".format(bounding_box_dict["name"], bounding_box_dict["confidence"])
             ymin = bounding_box_dict["bbox_dict"].get("Top")
