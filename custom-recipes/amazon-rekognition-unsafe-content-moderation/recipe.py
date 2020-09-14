@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
-import json
 from typing import Dict, AnyStr
 from ratelimit import limits, RateLimitException
 from retry import retry
 
 
 from plugin_params_loader import PluginParamsLoader
-from amazon_rekognition_api_client import API_EXCEPTIONS
-from plugin_io_utils import IMAGE_PATH_COLUMN
+from amazon_rekognition_api_client import API_EXCEPTIONS, call_api_generic
 from dku_io_utils import set_column_description
 from api_parallelizer import api_parallelizer
 from amazon_rekognition_api_formatting import UnsafeContentAPIFormatter
@@ -29,19 +27,17 @@ column_prefix = "moderation_api"
 @retry((RateLimitException, OSError), delay=plugin_params.api_quota_period, tries=5)
 @limits(calls=plugin_params.api_quota_rate_limit, period=plugin_params.api_quota_period)
 def call_api_moderation(row: Dict, minimum_score: int) -> AnyStr:
-    image_path = row.get(IMAGE_PATH_COLUMN)
-    if plugin_params.input_folder_is_s3:
-        image_request = {
-            "S3Object": {
-                "Bucket": plugin_params.input_folder_bucket,
-                "Name": plugin_params.input_folder_root_path + image_path,
-            }
-        }
-    else:
-        with plugin_params.input_folder.get_download_stream(image_path) as stream:
-            image_request = {"Bytes": stream.read()}
-    response = plugin_params.api_client.detect_moderation_labels(Image=image_request, MinConfidence=minimum_score)
-    return json.dumps(response)
+    response_json = call_api_generic(
+        row=row,
+        minimum_score=minimum_score,
+        api_client=plugin_params.api_client,
+        api_client_method_name="detect_moderation_labels",
+        input_folder=plugin_params.input_folder,
+        input_folder_is_s3=plugin_params.input_folder_is_s3,
+        input_folder_bucket=plugin_params.input_folder_bucket,
+        input_folder_root_path=plugin_params.input_folder_root_path,
+    )
+    return response_json
 
 
 df = api_parallelizer(

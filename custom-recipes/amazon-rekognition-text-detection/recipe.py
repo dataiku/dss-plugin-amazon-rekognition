@@ -1,18 +1,12 @@
 # -*- coding: utf-8 -*-
-import json
-import logging
 from typing import Dict, AnyStr
 from ratelimit import limits, RateLimitException
 from retry import retry
-from PIL import Image
-from io import BytesIO
 
 
 from plugin_params_loader import PluginParamsLoader
-from amazon_rekognition_api_client import API_EXCEPTIONS
-from plugin_io_utils import IMAGE_PATH_COLUMN
+from amazon_rekognition_api_client import API_EXCEPTIONS, call_api_generic
 from dku_io_utils import set_column_description
-from plugin_image_utils import save_image_bytes, auto_rotate_image
 from api_parallelizer import api_parallelizer
 from amazon_rekognition_api_formatting import TextDetectionAPIFormatter
 
@@ -33,34 +27,17 @@ column_prefix = "text_api"
 @retry((RateLimitException, OSError), delay=plugin_params.api_quota_period, tries=5)
 @limits(calls=plugin_params.api_quota_rate_limit, period=plugin_params.api_quota_period)
 def call_api_text_detection(row: Dict, orientation_correction: bool) -> AnyStr:
-    image_path = row.get(IMAGE_PATH_COLUMN)
-    pil_image = None
-    if plugin_params.input_folder_is_s3:
-        image_request = {
-            "S3Object": {
-                "Bucket": plugin_params.input_folder_bucket,
-                "Name": plugin_params.input_folder_root_path + image_path,
-            }
-        }
-    else:
-        with plugin_params.input_folder.get_download_stream(image_path) as stream:
-            image_request = {"Bytes": stream.read()}
-            pil_image = Image.open(BytesIO(image_request["Bytes"]))
-    if orientation_correction:
-        # Need to use another API endpoint to retrieve the estimated orientation
-        orientation_response = plugin_params.api_client.recognize_celebrities(Image=image_request)
-        detected_orientation = orientation_response.get("OrientationCorrection", "")
-        if pil_image is None:
-            with plugin_params.input_folder.get_download_stream(image_path) as stream:
-                pil_image = Image.open(stream)
-        (rotated_image, rotated) = auto_rotate_image(pil_image, detected_orientation)
-        if rotated:
-            logging.info("Corrected image orientation: {}".format(image_path))
-            image_request = {"Bytes": save_image_bytes(rotated_image, image_path).getvalue()}
-    response = plugin_params.api_client.detect_text(Image=image_request)
-    if orientation_correction:
-        response["OrientationCorrection"] = detected_orientation
-    return json.dumps(response)
+    response_json = call_api_generic(
+        row=row,
+        orientation_correction=orientation_correction,
+        api_client=plugin_params.api_client,
+        api_client_method_name="detect_text",
+        input_folder=plugin_params.input_folder,
+        input_folder_is_s3=plugin_params.input_folder_is_s3,
+        input_folder_bucket=plugin_params.input_folder_bucket,
+        input_folder_root_path=plugin_params.input_folder_root_path,
+    )
+    return response_json
 
 
 df = api_parallelizer(
