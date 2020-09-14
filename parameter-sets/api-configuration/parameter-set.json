@@ -28,7 +28,7 @@
             "mandatory": false
         },
         {
-            "name": "aws_region",
+            "name": "aws_region_name",
             "label": "AWS region",
             "description": "If empty, attempts to ascertain region name from the environment.",
             "type": "STRING",
