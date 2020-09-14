@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Module with utility functions to annotate images"""
+
 import os
 from typing import List, AnyStr
 

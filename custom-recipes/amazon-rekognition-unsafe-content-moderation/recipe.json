@@ -42,21 +42,9 @@
             "mandatory": true
         },
         {
-            "name": "separator_advanced",
-            "label": "Advanced",
-            "type": "SEPARATOR"
-        },
-        {
-            "name": "expert",
-            "label": "Expert mode",
-            "type": "BOOLEAN",
-            "defaultValue": false
-        },
-        {
             "name": "category_level",
             "label": "Content category level",
             "type": "SELECT",
-            "visibilityCondition": "model.expert",
             "selectChoices": [
                 {
                     "value": "TOP",
@@ -77,7 +65,7 @@
             "type": "MULTISELECT",
             "description": "List of top-level content categories",
             "mandatory": true,
-            "visibilityCondition": "model.expert && model.category_level == 'TOP'",
+            "visibilityCondition": "model.category_level == 'TOP'",
             "selectChoices": [
                 {
                     "value": "EXPLICIT_NUDITY",
@@ -107,7 +95,7 @@
             "name": "content_categories_second_level",
             "label": "Second-level categories",
             "type": "MULTISELECT",
-            "visibilityCondition": "model.expert && model.category_level == 'SECOND'",
+            "visibilityCondition": "model.category_level == 'SECOND'",
             "description": "List of second-level content categories",
             "mandatory": true,
             "selectChoices": [
@@ -204,6 +192,17 @@
                 "CORPSES",
                 "HANGING"
             ]
+        },
+        {
+            "name": "separator_advanced",
+            "label": "Advanced",
+            "type": "SEPARATOR"
+        },
+        {
+            "name": "expert",
+            "label": "Expert mode",
+            "type": "BOOLEAN",
+            "defaultValue": false
         },
         {
             "name": "minimum_score",

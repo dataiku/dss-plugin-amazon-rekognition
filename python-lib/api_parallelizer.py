@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Module with functions to parallelize API calls with error handling"""
+
 import logging
 import inspect
 import math

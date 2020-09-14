@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Module with classes to format Amazon Rekognition API results"""
+
 import logging
 from typing import AnyStr, Dict, List
 from enum import Enum
@@ -67,7 +69,7 @@ class UnsafeContentCategorySecondLevelEnum(Enum):
 
 class GenericAPIFormatter:
     """
-    Geric Formatter class for API responses:
+    Generic Formatter class for API responses:
     - initialize with generic parameters
     - compute generic column descriptions
     - apply 'format_row' function to dataframe
