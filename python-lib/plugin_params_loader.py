@@ -108,12 +108,12 @@ class PluginParamsLoader:
         """Validate output parameters"""
         output_params_dict = {}
         # Mandatory output dataset
-        output_dataset_names = get_output_names_for_role("output_dataset")  # mandatory output
+        output_dataset_names = get_output_names_for_role("output_dataset")
         if len(output_dataset_names) == 0:
             raise PluginParamValidationError("Please specify output folder")
         output_params_dict["output_dataset"] = dataiku.Dataset(output_dataset_names[0])
-        # Mandatory output folder
-        output_folder_names = get_output_names_for_role("output_folder")  # optional output
+        # Optional output folder
+        output_folder_names = get_output_names_for_role("output_folder")
         output_params_dict["output_folder"] = None
         if len(output_folder_names) != 0:
             output_params_dict["output_folder"] = dataiku.Folder(output_folder_names[0])
