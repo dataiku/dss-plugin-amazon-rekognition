@@ -59,9 +59,9 @@ column_prefix = "text_api"
 # ==============================================================================
 
 image_path_list = [p for p in generate_path_list(input_folder) if supported_image_format(p)]
-input_df = pd.DataFrame(image_path_list, columns=[IMAGE_PATH_COLUMN])
-if len(input_df.index) == 0:
+if len(image_path_list) == 0:
     raise ValueError("No images of supported format (PNG or JPG) were found in the folder")
+input_df = pd.DataFrame(image_path_list, columns=[IMAGE_PATH_COLUMN])
 
 
 @retry((RateLimitException, OSError), delay=api_quota_period, tries=5)
@@ -76,7 +76,9 @@ def call_api_text_detection(row: Dict, minimum_score: int, orientation_correctio
             image_request = {"Bytes": stream.read()}
             pil_image = Image.open(BytesIO(image_request["Bytes"]))
     if orientation_correction:
-        detected_orientation = client.recognize_celebrities(Image=image_request).get("OrientationCorrection", "")
+        # Need to use another API endpoint to retrieve the estimated orientation
+        orientation_response = client.recognize_celebrities(Image=image_request)
+        detected_orientation = orientation_response.get("OrientationCorrection", "")
         if pil_image is None:
             with input_folder.get_download_stream(image_path) as stream:
                 pil_image = Image.open(stream)
