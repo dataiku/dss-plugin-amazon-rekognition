@@ -4,13 +4,13 @@
 import logging
 from typing import AnyStr, Dict, List
 from enum import Enum
-
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import dataiku
 from tqdm.auto import tqdm as tqdm_auto
 from PIL import Image, UnidentifiedImageError
 import pandas as pd
 
-import dataiku
 
 from plugin_io_utils import (
     API_COLUMN_NAMES_DESCRIPTION_DICT,
@@ -23,6 +23,7 @@ from plugin_io_utils import (
 )
 from api_parallelizer import DEFAULT_PARALLEL_WORKERS
 from plugin_image_utils import save_image_bytes, auto_rotate_image, draw_bounding_box_pil_image
+
 
 # ==============================================================================
 # CONSTANT DEFINITION

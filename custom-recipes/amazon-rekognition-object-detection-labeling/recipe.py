@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
+"""Object Detection & Labeling recipe script"""
 
 from typing import Dict, AnyStr
 from ratelimit import limits, RateLimitException
 from retry import retry
-
 
 from plugin_params_loader import PluginParamsLoader
 from amazon_rekognition_api_client import API_EXCEPTIONS, call_api_generic
@@ -16,13 +16,8 @@ from amazon_rekognition_api_formatting import ObjectDetectionLabelingAPIFormatte
 # SETUP
 # ==============================================================================
 
-plugin_params = PluginParamsLoader().load_validate_params()
+plugin_params = PluginParamsLoader().validate_load_params()
 column_prefix = "object_api"
-
-
-# ==============================================================================
-# RUN
-# ==============================================================================
 
 
 @retry((RateLimitException, OSError), delay=plugin_params.api_quota_period, tries=5)
@@ -43,6 +38,11 @@ def call_api_object_detection(row: Dict, num_objects: int, minimum_score: int, o
     return response_json
 
 
+# ==============================================================================
+# RUN
+# ==============================================================================
+
+# Call API in parallel
 df = api_parallelizer(
     input_df=plugin_params.input_df,
     api_call_function=call_api_object_detection,
@@ -55,6 +55,7 @@ df = api_parallelizer(
     column_prefix=column_prefix,
 )
 
+# Format API results
 api_formatter = ObjectDetectionLabelingAPIFormatter(
     input_df=plugin_params.input_df,
     num_objects=plugin_params.num_objects,
@@ -66,6 +67,7 @@ api_formatter = ObjectDetectionLabelingAPIFormatter(
 )
 output_df = api_formatter.format_df(df)
 
+# Write back results
 plugin_params.output_dataset.write_with_schema(output_df)
 set_column_description(
     output_dataset=plugin_params.output_dataset, column_description_dict=api_formatter.column_description_dict
