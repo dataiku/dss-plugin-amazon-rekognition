@@ -9,6 +9,7 @@ from dataiku.customrecipe import get_recipe_resource
 from PIL import Image, ImageFont, ImageDraw
 from io import BytesIO
 
+
 # ==============================================================================
 # CONSTANT DEFINITION
 # ==============================================================================
@@ -96,7 +97,7 @@ def draw_bounding_box_pil_image(
     text: AnyStr = "",
     color: AnyStr = BOUNDING_BOX_COLOR,
     use_normalized_coordinates: bool = True,
-):
+) -> None:
     """
     Draw a bounding box to an image. Code loosely inspired by
     https://github.com/tensorflow/models/blob/master/research/object_detection/utils/visualization_utils.py

@@ -171,7 +171,8 @@ class PluginParamsLoader:
         )
         return preset_params_dict
 
-    def load_validate_params(self) -> PluginParams:
+    def validate_load_params(self) -> PluginParams:
+        """Validate and load all parameters into a `PluginParams` instance"""
         input_params_dict = self.validate_input_params()
         output_params_dict = self.validate_output_params()
         recipe_params_dict = self.validate_recipe_params()

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Unsafe Content Moderation recipe script"""
+
 from typing import Dict, AnyStr
 from ratelimit import limits, RateLimitException
 from retry import retry
@@ -14,13 +16,8 @@ from amazon_rekognition_api_formatting import UnsafeContentAPIFormatter
 # SETUP
 # ==============================================================================
 
-plugin_params = PluginParamsLoader().load_validate_params()
+plugin_params = PluginParamsLoader().validate_load_params()
 column_prefix = "moderation_api"
-
-
-# ==============================================================================
-# RUN
-# ==============================================================================
 
 
 @retry((RateLimitException, OSError), delay=plugin_params.api_quota_period, tries=5)
@@ -39,6 +36,11 @@ def call_api_moderation(row: Dict, minimum_score: int) -> AnyStr:
     return response_json
 
 
+# ==============================================================================
+# RUN
+# ==============================================================================
+
+# Call API in parallel
 df = api_parallelizer(
     input_df=plugin_params.input_df,
     api_call_function=call_api_moderation,
@@ -49,6 +51,7 @@ df = api_parallelizer(
     column_prefix=column_prefix,
 )
 
+# Format API results
 api_formatter = UnsafeContentAPIFormatter(
     input_df=plugin_params.input_df,
     category_level=plugin_params.unsafe_content_category_level,
@@ -59,6 +62,7 @@ api_formatter = UnsafeContentAPIFormatter(
 )
 output_df = api_formatter.format_df(df)
 
+# Write back results
 plugin_params.output_dataset.write_with_schema(output_df)
 set_column_description(
     output_dataset=plugin_params.output_dataset, column_description_dict=api_formatter.column_description_dict

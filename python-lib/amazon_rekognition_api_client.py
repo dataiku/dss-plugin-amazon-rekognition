@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
-"""Module with a wrapper class around the Amazon Rekognition API"""
+"""Module with utility functions to call the Amazon Rekognition API"""
 
 import logging
 import json
 from typing import AnyStr, Dict
 from io import BytesIO
 
+import dataiku
 import boto3
 from boto3.exceptions import Boto3Error
 from botocore.exceptions import BotoCoreError, ClientError
 from PIL import Image, UnidentifiedImageError
 
-import dataiku
-
 from plugin_io_utils import IMAGE_PATH_COLUMN
 from plugin_image_utils import save_image_bytes, auto_rotate_image
+
 
 # ==============================================================================
 # CONSTANT DEFINITION

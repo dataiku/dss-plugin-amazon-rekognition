@@ -3,11 +3,11 @@
 
 import logging
 import json
-import pandas as pd
-
 from enum import Enum
 from typing import AnyStr, List, NamedTuple, Dict
 from collections import OrderedDict, namedtuple
+
+import pandas as pd
 
 
 # ==============================================================================

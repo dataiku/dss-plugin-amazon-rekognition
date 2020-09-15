@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Module with read/write utility functions based on the Dataiku API"""
 
+from typing import Dict, List, AnyStr
+
 import dataiku
-from typing import Dict
 
 
 # ==============================================================================
@@ -10,7 +11,7 @@ from typing import Dict
 # ==============================================================================
 
 
-def generate_path_list(folder: dataiku.Folder):
+def generate_path_list(folder: dataiku.Folder) -> List[AnyStr]:
     partition = ""
     if folder.read_partitions is not None:
         partition = folder.read_partitions[0]
