@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Module with read/write utility functions based on the Dataiku API"""
+
 import dataiku
 from typing import Dict
 

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Module with classes to format Amazon Rekognition API results"""
+
 import logging
 from typing import AnyStr, Dict, List
 from enum import Enum
@@ -67,7 +69,7 @@ class UnsafeContentCategorySecondLevelEnum(Enum):
 
 class GenericAPIFormatter:
     """
-    Geric Formatter class for API responses:
+    Generic Formatter class for API responses:
     - initialize with generic parameters
     - compute generic column descriptions
     - apply 'format_row' function to dataframe
@@ -126,6 +128,8 @@ class GenericAPIFormatter:
         return result
 
     def format_save_images(self, output_folder: dataiku.Folder):
+        partition = output_folder.writePartition if output_folder.writePartition else ""
+        output_folder.clear_partition(partition)
         df_iterator = (i[1].to_dict() for i in self.output_df.iterrows())
         len_iterator = len(self.output_df.index)
         logging.info("Saving bounding boxes to output folder...")
@@ -228,7 +232,7 @@ class ObjectDetectionLabelingAPIFormatter(GenericAPIFormatter):
         if self.orientation_correction:
             detected_orientation = response.get("OrientationCorrection", "")
             (image, rotated) = auto_rotate_image(image, detected_orientation)
-        bounding_box_list_dict = sorted(bounding_box_list_dict, key=lambda x: x.get("confidence"))
+        bounding_box_list_dict = sorted(bounding_box_list_dict, key=lambda x: x.get("confidence", 0), reverse=True)
         for bounding_box_dict in bounding_box_list_dict:
             bbox_text = "{} - {:.1%} ".format(bounding_box_dict["name"], bounding_box_dict["confidence"])
             ymin = bounding_box_dict["bbox_dict"].get("Top")

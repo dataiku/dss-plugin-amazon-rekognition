@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Module with read/write utility functions which are *not* based on the Dataiku API"""
+
 import logging
 import json
 import pandas as pd

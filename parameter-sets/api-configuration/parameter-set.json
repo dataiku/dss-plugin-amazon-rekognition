@@ -14,21 +14,21 @@
             "type": "SEPARATOR"
         },
         {
-            "name": "aws_access_key",
+            "name": "aws_access_key_id",
             "label": "AWS access key ID",
             "description": "If empty, attempts to ascertain credentials from the environment.",
             "type": "STRING",
             "mandatory": false
         },
         {
-            "name": "aws_secret_key",
+            "name": "aws_secret_access_key",
             "label": "AWS secret access key",
             "description": "If empty, attempts to ascertain credentials from the environment.",
             "type": "PASSWORD",
             "mandatory": false
         },
         {
-            "name": "aws_region",
+            "name": "aws_region_name",
             "label": "AWS region",
             "description": "If empty, attempts to ascertain region name from the environment.",
             "type": "STRING",
