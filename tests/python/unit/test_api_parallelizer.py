@@ -3,19 +3,13 @@
 # pytest automatically runs all the function starting with "test_"
 # see https://docs.pytest.org for more information
 
-import sys
 import json
-import os
-from pathlib import Path
 from typing import AnyStr, Dict
 from enum import Enum
 
 import pandas as pd
 from boto3.exceptions import Boto3Error
 
-# Add python-lib to the path to enable exec outside of DSS
-plugin_root_path = Path(__file__).parents[3]
-sys.path.append(os.path.join(plugin_root_path, "python-lib"))
 from api_parallelizer import api_parallelizer  # noqa
 
 
@@ -25,6 +19,7 @@ from api_parallelizer import api_parallelizer  # noqa
 
 API_EXCEPTIONS = (Boto3Error, ValueError)
 COLUMN_PREFIX = "test_api"
+INPUT_COLUMN = "test_case"
 
 
 class APICaseEnum(Enum):
@@ -45,15 +40,12 @@ class APICaseEnum(Enum):
     }
 
 
-INPUT_COLUMN = "test_case"
-TEST_INPUT_DF = pd.DataFrame({INPUT_COLUMN: list(APICaseEnum)})
-
 # ==============================================================================
 # CLASS AND FUNCTION DEFINITION
 # ==============================================================================
 
 
-def call_test_api(row: Dict, api_function_param: int) -> AnyStr:
+def call_mock_api(row: Dict, api_function_param: int = 42) -> AnyStr:
     test_case = row.get(INPUT_COLUMN)
     response = {}
     if test_case == APICaseEnum.SUCCESS:
@@ -68,15 +60,38 @@ def call_test_api(row: Dict, api_function_param: int) -> AnyStr:
     return json.dumps(response)
 
 
-def test_api_parallelizer():
+def test_api_success():
+    input_df = pd.DataFrame({INPUT_COLUMN: [APICaseEnum.SUCCESS]})
     df = api_parallelizer(
-        input_df=TEST_INPUT_DF,
-        api_call_function=call_test_api,
+        input_df=input_df, api_call_function=call_mock_api, api_exceptions=API_EXCEPTIONS, column_prefix=COLUMN_PREFIX
+    )
+    output_dictionary = df.iloc[0, :].to_dict()
+    expected_dictionary = APICaseEnum.SUCCESS.value
+    for k in expected_dictionary:
+        assert output_dictionary[k] == expected_dictionary[k]
+
+
+def test_api_failure():
+    input_df = pd.DataFrame({INPUT_COLUMN: [APICaseEnum.API_FAILURE]})
+    df = api_parallelizer(
+        input_df=input_df, api_call_function=call_mock_api, api_exceptions=API_EXCEPTIONS, column_prefix=COLUMN_PREFIX
+    )
+    output_dictionary = df.iloc[0, :].to_dict()
+    expected_dictionary = APICaseEnum.API_FAILURE.value
+    for k in expected_dictionary:
+        assert output_dictionary[k] == expected_dictionary[k]
+
+
+def test_invalid_input():
+    input_df = pd.DataFrame({INPUT_COLUMN: [APICaseEnum.INVALID_INPUT]})
+    df = api_parallelizer(
+        input_df=input_df,
+        api_call_function=call_mock_api,
         api_exceptions=API_EXCEPTIONS,
         column_prefix=COLUMN_PREFIX,
         api_function_param="invalid_integer",
     )
-    api_columns = df.keys()[1:]
-    for test_case in APICaseEnum:
-        output_dict = df.loc[df[INPUT_COLUMN] == test_case, api_columns].to_dict(orient="records")[0]
-        assert output_dict == test_case.value
+    output_dictionary = df.iloc[0, :].to_dict()
+    expected_dictionary = APICaseEnum.INVALID_INPUT.value
+    for k in expected_dictionary:
+        assert output_dictionary[k] == expected_dictionary[k]
