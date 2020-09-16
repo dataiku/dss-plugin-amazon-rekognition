@@ -257,7 +257,7 @@ class TextDetectionAPIFormatter(GenericAPIFormatter):
         self,
         input_df: pd.DataFrame,
         input_folder: dataiku.Folder = None,
-        minimum_score: float = 0,
+        minimum_score: float = 0.0,
         orientation_correction: bool = True,
         column_prefix: AnyStr = "text_api",
         error_handling: ErrorHandlingEnum = ErrorHandlingEnum.LOG,

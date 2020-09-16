@@ -54,6 +54,7 @@ df = api_parallelizer(
 # Format API results
 api_formatter = TextDetectionAPIFormatter(
     input_df=plugin_params.input_df,
+    minimum_score=plugin_params.minimum_score,
     orientation_correction=plugin_params.orientation_correction,
     input_folder=plugin_params.input_folder,
     error_handling=plugin_params.error_handling,
