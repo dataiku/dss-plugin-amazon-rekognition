@@ -1,4 +1,4 @@
-# Amazon Rekognition Plugin 🚧 WORK IN PROGRESS
+# Amazon Rekognition Plugin
 
 This Dataiku DSS plugin provides several recipes to call the [Amazon Rekognition APIs](https://aws.amazon.com/rekognition/).
 
