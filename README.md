@@ -5,6 +5,6 @@ This Dataiku DSS plugin provides several recipes to call the [Amazon Rekognition
 
 Documentation: https://www.dataiku.com/product/plugins/amazon-rekognition/
 
-### Licence
+### License
 
 This plugin is distributed under the Apache License version 2.0
