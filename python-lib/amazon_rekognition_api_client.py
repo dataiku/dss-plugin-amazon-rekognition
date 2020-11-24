@@ -23,7 +23,7 @@ class AmazonRekognitionAPIWrapper:
     """Wrapper class with helper methods to call the Amazon Rekognition API"""
 
     API_EXCEPTIONS = (Boto3Error, BotoCoreError, ClientError, UnidentifiedImageError)
-    SUPPORTED_IMAGE_FORMATS = {"jpeg", "jpg", "png", "gif", "bmp", "webp", "ico"}
+    SUPPORTED_IMAGE_FORMATS = {"jpeg", "jpg", "png"}
     RATELIMIT_EXCEPTIONS = (RateLimitException, OSError)
     RATELIMIT_RETRIES = 5
 
