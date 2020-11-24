@@ -1,11 +1,11 @@
 {
     "id": "amazon-rekognition",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "meta": {
         "label": "Amazon Rekognition",
         "category": "Computer Vision",
         "description": "Use Amazon Rekognition APIs to perform Object Detection & Labeling, Text Detection and Unsafe Content Moderation on images",
-        "author": "Dataiku (Alex COMBESSIE and Joachim ZENTICI)",
+        "author": "Dataiku (Alex COMBESSIE, Joachim ZENTICI)",
         "icon": "icon-amazon-rekognition icon-cloud",
         "licenseInfo": "Apache Software License",
         "url": "https://www.dataiku.com/product/plugins/amazon-rekognition/",

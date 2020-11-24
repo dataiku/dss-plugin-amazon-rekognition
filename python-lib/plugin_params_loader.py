@@ -3,15 +3,17 @@
 
 import logging
 from typing import Dict, AnyStr, List
+from enum import Enum
+
+import pandas as pd
+from fastcore.utils import store_attr
 
 import dataiku
-import boto3
-import pandas as pd
 from dataiku.customrecipe import get_recipe_config, get_input_names_for_role, get_output_names_for_role
 
-from amazon_rekognition_api_client import get_client
-from plugin_io_utils import IMAGE_PATH_COLUMN, ErrorHandlingEnum
-from dku_io_utils import generate_path_list
+from amazon_rekognition_api_client import AmazonRekognitionAPIWrapper
+from plugin_io_utils import PATH_COLUMN, ErrorHandling
+from dku_io_utils import generate_path_df
 from amazon_rekognition_api_formatting import (
     UnsafeContentCategoryLevelEnum,
     UnsafeContentCategoryTopLevelEnum,
@@ -19,9 +21,12 @@ from amazon_rekognition_api_formatting import (
 )
 
 
-# ==============================================================================
-# CLASS AND FUNCTION DEFINITION
-# ==============================================================================
+class RecipeID(Enum):
+    """Enum class to identify each recipe"""
+
+    OBJECT_DETECTION_LABELING = "object_api"
+    TEXT_DETECTION = "text_api"
+    UNSAFE_CONTENT_MODERATION = "moderation_api"
 
 
 class PluginParamValidationError(ValueError):
@@ -35,16 +40,17 @@ class PluginParams:
 
     def __init__(
         self,
-        api_client: boto3.client,
+        api_wrapper: AmazonRekognitionAPIWrapper,
         input_folder: dataiku.Folder,
         input_df: pd.DataFrame,
+        column_prefix: AnyStr,
         output_dataset: dataiku.Dataset,
         api_quota_rate_limit: int,
         api_quota_period: int,
         parallel_workers: int,
+        error_handling: ErrorHandling,
         minimum_score: float,
-        error_handling: ErrorHandlingEnum,
-        num_objects: int = 10,
+        num_objects: int = None,
         orientation_correction: bool = False,
         output_folder: dataiku.Folder = None,
         input_folder_is_s3: bool = False,
@@ -54,130 +60,132 @@ class PluginParams:
         unsafe_content_categories_top_level: List[UnsafeContentCategoryTopLevelEnum] = [],
         unsafe_content_categories_second_level: List[UnsafeContentCategorySecondLevelEnum] = [],
     ):
-        self.api_client = api_client
-        self.input_folder = input_folder
-        self.input_df = input_df
-        self.input_folder_is_s3 = input_folder_is_s3
-        self.input_folder_bucket = input_folder_bucket
-        self.input_folder_root_path = input_folder_root_path
-        self.output_dataset = output_dataset
-        self.output_folder = output_folder
-        self.api_quota_rate_limit = api_quota_rate_limit
-        self.api_quota_period = api_quota_period
-        self.parallel_workers = parallel_workers
-        self.num_objects = num_objects
-        self.minimum_score = minimum_score
-        self.orientation_correction = orientation_correction
-        self.error_handling = error_handling
-        self.unsafe_content_category_level = unsafe_content_category_level
-        self.unsafe_content_categories_top_level = unsafe_content_categories_top_level
-        self.unsafe_content_categories_second_level = unsafe_content_categories_second_level
+        store_attr()
 
 
 class PluginParamsLoader:
     """Class to validate and load plugin parameters"""
 
+    DOC_URL = "https://www.dataiku.com/product/plugins/amazon-rekognition/"
+
+    def __init__(self, recipe_id: RecipeID):
+        self.recipe_id = recipe_id
+        self.column_prefix = self.recipe_id.value
+        self.recipe_config = get_recipe_config()
+
     def validate_input_params(self) -> Dict:
         """Validate input parameters"""
-        input_params_dict = {}
+        input_params = {}
         input_folder_names = get_input_names_for_role("input_folder")
         if len(input_folder_names) == 0:
             raise PluginParamValidationError("Please specify input folder")
-        input_params_dict["input_folder"] = dataiku.Folder(input_folder_names[0])
-        image_path_list = [
-            p
-            for p in generate_path_list(input_params_dict["input_folder"])
-            if p.split(".")[-1].lower() in {"jpeg", "jpg", "png"}
-        ]
-        if len(image_path_list) == 0:
-            raise PluginParamValidationError("No images of supported format (PNG or JPG) were found in input folder")
-        input_params_dict["input_df"] = pd.DataFrame(image_path_list, columns=[IMAGE_PATH_COLUMN])
-        input_params_dict["input_folder_is_s3"] = input_params_dict["input_folder"].get_info().get("type", "") == "S3"
-        if input_params_dict["input_folder_is_s3"]:
-            input_folder_access_info = input_params_dict["input_folder"].get_info().get("accessInfo", {})
-            input_params_dict["input_folder_bucket"] = input_folder_access_info.get("bucket")
-            input_params_dict["input_folder_root_path"] = str(input_folder_access_info.get("root", ""))[1:]
+        input_params["input_folder"] = dataiku.Folder(input_folder_names[0])
+        input_params["input_df"] = generate_path_df(
+            folder=input_params["input_folder"],
+            file_extensions=AmazonRekognitionAPIWrapper.SUPPORTED_IMAGE_FORMATS,
+            path_column=PATH_COLUMN,
+        )
+        input_params["input_folder_is_s3"] = input_params["input_folder"].get_info().get("type", "") == "S3"
+        if input_params["input_folder_is_s3"]:
+            input_folder_access_info = input_params["input_folder"].get_info().get("accessInfo", {})
+            input_params["input_folder_bucket"] = input_folder_access_info.get("bucket")
+            input_params["input_folder_root_path"] = str(input_folder_access_info.get("root", ""))[1:]
             logging.info(
-                "Input folder is on Amazon S3 with bucket: {} and root path: {}".format(
-                    input_params_dict["input_folder_bucket"], input_params_dict["input_folder_root_path"]
-                )
+                f"Input folder is on Amazon S3 with bucket: {input_params['input_folder_bucket']} "
+                + f"and root path: {input_params['input_folder_root_path']}"
             )
-        return input_params_dict
+        return input_params
 
     def validate_output_params(self) -> Dict:
         """Validate output parameters"""
-        output_params_dict = {}
+        output_params = {}
         # Mandatory output dataset
         output_dataset_names = get_output_names_for_role("output_dataset")
         if len(output_dataset_names) == 0:
-            raise PluginParamValidationError("Please specify output folder")
-        output_params_dict["output_dataset"] = dataiku.Dataset(output_dataset_names[0])
+            raise PluginParamValidationError("Please specify output dataset")
+        output_params["output_dataset"] = dataiku.Dataset(output_dataset_names[0])
         # Optional output folder
         output_folder_names = get_output_names_for_role("output_folder")
-        output_params_dict["output_folder"] = None
-        if len(output_folder_names) != 0:
-            output_params_dict["output_folder"] = dataiku.Folder(output_folder_names[0])
-        return output_params_dict
+        output_params["output_folder"] = None
+        if self.recipe_id != RecipeID.UNSAFE_CONTENT_MODERATION:
+            if len(output_folder_names) == 0:
+                raise PluginParamValidationError("Please specify output folder")
+            else:
+                output_params["output_folder"] = dataiku.Folder(output_folder_names[0])
+        return output_params
 
     def validate_recipe_params(self) -> Dict:
-        recipe_params_dict = {}
-        recipe_config = get_recipe_config()
-        recipe_params_dict["num_objects"] = int(recipe_config.get("num_objects", 1))
-        if recipe_params_dict["num_objects"] < 1:
-            raise PluginParamValidationError("Number of objects must be greater than 1")
-        recipe_params_dict["minimum_score"] = int(recipe_config.get("minimum_score", 0) * 100)
-        if recipe_params_dict["minimum_score"] < 0 or recipe_params_dict["minimum_score"] > 100:
+        """Validate recipe parameters for all recipes"""
+        recipe_params = {}
+        # Applies to several recipes
+        minimum_score = self.recipe_config.get("minimum_score")
+        if not isinstance(minimum_score, (int, float)):
+            raise PluginParamValidationError(f"Invalid minimum score parameter: {minimum_score}")
+        recipe_params["minimum_score"] = int(minimum_score * 100)
+        if recipe_params["minimum_score"] < 0 or recipe_params["minimum_score"] > 100:
             raise PluginParamValidationError("Minimum confidence score must be between 0 and 1")
-        recipe_params_dict["orientation_correction"] = bool(recipe_config.get("orientation_correction", False))
-        recipe_params_dict["error_handling"] = ErrorHandlingEnum[recipe_config.get("error_handling")]
-        if "category_level" in recipe_config:
-            recipe_params_dict["unsafe_content_category_level"] = UnsafeContentCategoryLevelEnum[
-                recipe_config.get("category_level")
+        recipe_params["error_handling"] = ErrorHandling[self.recipe_config.get("error_handling")]
+        recipe_params["orientation_correction"] = bool(self.recipe_config.get("orientation_correction", False))
+        # Applies to object detection & labeling
+        if self.recipe_id == RecipeID.OBJECT_DETECTION_LABELING:
+            num_objects = self.recipe_config.get("num_objects")
+            if not isinstance(num_objects, (int, float)):
+                raise PluginParamValidationError(f"Invalid number of labels parameter: {num_objects}")
+            if num_objects < 1:
+                raise PluginParamValidationError("Number of labels must be greater than 1")
+            recipe_params["num_objects"] = num_objects
+        # Applies to unsafe content moderation
+        if self.recipe_id == RecipeID.UNSAFE_CONTENT_MODERATION:
+            recipe_params["unsafe_content_category_level"] = UnsafeContentCategoryLevelEnum[
+                self.recipe_config.get("category_level")
             ]
-            recipe_params_dict["unsafe_content_categories_top_level"] = [
-                UnsafeContentCategoryTopLevelEnum[i] for i in recipe_config.get("content_categories_top_level", [])
+            recipe_params["unsafe_content_categories_top_level"] = [
+                UnsafeContentCategoryTopLevelEnum[i] for i in self.recipe_config.get("content_categories_top_level", [])
             ]
-            recipe_params_dict["unsafe_content_categories_second_level"] = [
+            recipe_params["unsafe_content_categories_second_level"] = [
                 UnsafeContentCategorySecondLevelEnum[i]
-                for i in recipe_config.get("content_categories_second_level", [])
+                for i in self.recipe_config.get("content_categories_second_level", [])
             ]
             if (
-                len(recipe_params_dict["unsafe_content_categories_top_level"]) == 0
-                or len(recipe_params_dict["unsafe_content_categories_second_level"]) == 0
+                len(recipe_params["unsafe_content_categories_top_level"]) == 0
+                or len(recipe_params["unsafe_content_categories_second_level"]) == 0
             ):
-                raise PluginParamValidationError("Choose at least one category")
-        logging.info("Validated plugin recipe parameters: {}".format(recipe_params_dict))
-        return recipe_params_dict
+                raise PluginParamValidationError("Choose at least one unsafe content category")
+        logging.info(f"Validated plugin recipe parameters: {recipe_params}")
+        return recipe_params
 
     def validate_preset_params(self) -> Dict:
         """Validate API configuration preset parameters"""
-        preset_params_dict = {}
-        recipe_config = get_recipe_config()
-        api_configuration_preset = recipe_config.get("api_configuration_preset", {})
-        preset_params_dict["api_quota_period"] = int(api_configuration_preset.get("api_quota_period", 1))
-        if preset_params_dict["api_quota_period"] < 1:
+        preset_params = {}
+        api_configuration_preset = self.recipe_config.get("api_configuration_preset", {})
+        if not api_configuration_preset:
+            raise PluginParamValidationError(f"Please specify an API configuration preset according to {self.DOC_URL}")
+        preset_params["api_quota_period"] = int(api_configuration_preset.get("api_quota_period", 1))
+        if preset_params["api_quota_period"] < 1:
             raise PluginParamValidationError("API quota period must be greater than 1")
-        preset_params_dict["api_quota_rate_limit"] = int(api_configuration_preset.get("api_quota_rate_limit", 1))
-        if preset_params_dict["api_quota_rate_limit"] < 1:
+        preset_params["api_quota_rate_limit"] = int(api_configuration_preset.get("api_quota_rate_limit", 1))
+        if preset_params["api_quota_rate_limit"] < 1:
             raise PluginParamValidationError("API quota rate limit must be greater than 1")
-        preset_params_dict["parallel_workers"] = int(api_configuration_preset.get("parallel_workers", 1))
-        if preset_params_dict["parallel_workers"] < 1 or preset_params_dict["parallel_workers"] > 100:
+        preset_params["parallel_workers"] = int(api_configuration_preset.get("parallel_workers", 1))
+        if preset_params["parallel_workers"] < 1 or preset_params["parallel_workers"] > 100:
             raise PluginParamValidationError("Concurrency must be between 1 and 100")
-        logging.info("Validated preset parameters: {}".format(preset_params_dict))
-        preset_params_dict["api_client"] = get_client(
+        logging.info(f"Validated preset parameters: {preset_params}")
+        preset_params["api_wrapper"] = AmazonRekognitionAPIWrapper(
             aws_access_key_id=api_configuration_preset.get("aws_access_key_id"),
             aws_secret_access_key=api_configuration_preset.get("aws_secret_access_key"),
             aws_region_name=api_configuration_preset.get("aws_region_name"),
+            api_quota_period=preset_params["api_quota_period"],
+            api_quota_rate_limit=preset_params["api_quota_rate_limit"],
         )
-        return preset_params_dict
+        return preset_params
 
     def validate_load_params(self) -> PluginParams:
         """Validate and load all parameters into a `PluginParams` instance"""
-        input_params_dict = self.validate_input_params()
-        output_params_dict = self.validate_output_params()
-        recipe_params_dict = self.validate_recipe_params()
-        preset_params_dict = self.validate_preset_params()
+        input_params = self.validate_input_params()
+        output_params = self.validate_output_params()
+        recipe_params = self.validate_recipe_params()
+        preset_params = self.validate_preset_params()
         plugin_params = PluginParams(
-            **input_params_dict, **output_params_dict, **recipe_params_dict, **preset_params_dict
+            column_prefix=self.column_prefix, **input_params, **output_params, **recipe_params, **preset_params
         )
         return plugin_params
