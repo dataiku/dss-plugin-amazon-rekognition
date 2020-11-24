@@ -3,32 +3,34 @@
 
 import logging
 import json
+import pandas as pd
+
 from enum import Enum
 from typing import AnyStr, List, NamedTuple, Dict
 from collections import OrderedDict, namedtuple
-
-import pandas as pd
 
 
 # ==============================================================================
 # CONSTANT DEFINITION
 # ==============================================================================
 
-IMAGE_PATH_COLUMN = "image_path"
-COLUMN_PREFIX = "api"
+PATH_COLUMN = "path"
+"""Default name of the column to store file paths"""
+
 API_COLUMN_NAMES_DESCRIPTION_DICT = OrderedDict(
     [
         ("response", "Raw response from the API in JSON format"),
         ("error_message", "Error message from the API"),
-        ("error_type", "Error type (module and class name)"),
+        ("error_type", "Error type or code from the API"),
         ("error_raw", "Raw error from the API"),
     ]
 )
+"""Default dictionary of API column names (key) and their descriptions (value)"""
 
-ApiColumnNameTuple = namedtuple("ApiColumnNameTuple", API_COLUMN_NAMES_DESCRIPTION_DICT.keys())
 
+class ErrorHandling(Enum):
+    """Enum class to identify how to handle API errors"""
 
-class ErrorHandlingEnum(Enum):
     LOG = "Log"
     FAIL = "Fail"
 
@@ -38,65 +40,55 @@ class ErrorHandlingEnum(Enum):
 # ==============================================================================
 
 
-def generate_unique(name: AnyStr, existing_names: List, prefix: AnyStr = COLUMN_PREFIX) -> AnyStr:
-    """
-    Generate a unique name among existing ones by suffixing a number. Can also add an optional prefix.
-    """
-    if prefix is not None:
-        new_name = prefix + "_" + name
+def generate_unique(name: AnyStr, existing_names: List, prefix: AnyStr) -> AnyStr:
+    """Generate a unique name among existing ones by suffixing a number and adding a prefix"""
+    if prefix:
+        new_name = f"{prefix}_{name}"
     else:
         new_name = name
-    for j in range(1, 1001):
+    for i in range(1, 1001):
         if new_name not in existing_names:
             return new_name
-        new_name = name + "_{}".format(j)
-    raise Exception("Failed to generated a unique name")
+        new_name = f"{name}_{i}"
+    raise RuntimeError(f"Failed to generated a unique name for '{name}'")
 
 
-def build_unique_column_names(existing_names: List[AnyStr], column_prefix: AnyStr = COLUMN_PREFIX) -> NamedTuple:
-    """
-    Helper function to the "api_parallelizer" main function.
-    Initializes a named tuple of column names from ApiColumnNameTuple, ensure columns are unique.
-    """
+def build_unique_column_names(existing_names: List[AnyStr], column_prefix: AnyStr) -> NamedTuple:
+    """Return a named tuple with prefixed API column names and their descriptions"""
+    ApiColumnNameTuple = namedtuple("ApiColumnNameTuple", API_COLUMN_NAMES_DESCRIPTION_DICT.keys())
     api_column_names = ApiColumnNameTuple(
-        *[generate_unique(k, existing_names, column_prefix) for k in ApiColumnNameTuple._fields]
+        *[generate_unique(column_name, existing_names, column_prefix) for column_name in ApiColumnNameTuple._fields]
     )
     return api_column_names
 
 
 def safe_json_loads(
-    str_to_check: AnyStr, error_handling: ErrorHandlingEnum = ErrorHandlingEnum.LOG, verbose: bool = False,
+    str_to_check: AnyStr, error_handling: ErrorHandling = ErrorHandling.LOG, verbose: bool = False,
 ) -> Dict:
-    """
-    Wrap json.loads with an additional parameter to handle errors:
-    - 'FAIL' to use json.loads, which throws an exception on invalid data
-    - 'LOG' to try json.loads and return an empty dict if data is invalid
-    """
-    if error_handling == ErrorHandlingEnum.FAIL:
+    """Load a JSON string safely with an `error_handling` parameter"""
+    if error_handling == ErrorHandling.FAIL:
         output = json.loads(str_to_check)
     else:
         try:
             output = json.loads(str_to_check)
         except (TypeError, ValueError):
             if verbose:
-                logging.warning("Invalid JSON: '" + str(str_to_check) + "'")
+                logging.warning(f"Invalid JSON: '{str_to_check}'")
             output = {}
     return output
 
 
 def move_api_columns_to_end(
-    df: pd.DataFrame, api_column_names: NamedTuple, error_handling: ErrorHandlingEnum = ErrorHandlingEnum.LOG
+    df: pd.DataFrame, api_column_names: NamedTuple, error_handling: ErrorHandling = ErrorHandling.LOG
 ) -> pd.DataFrame:
-    """
-    Move non-human-readable API columns to the end of the dataframe
-    """
+    """Move non-human-readable API columns to the end of the dataframe"""
     api_column_names_dict = api_column_names._asdict()
-    if error_handling == ErrorHandlingEnum.FAIL:
+    if error_handling == ErrorHandling.FAIL:
         api_column_names_dict.pop("error_message", None)
         api_column_names_dict.pop("error_type", None)
-    if not any(["error_raw" in k for k in df.keys()]):
+    if not any(["error_raw" in column_name for column_name in df.keys()]):
         api_column_names_dict.pop("error_raw", None)
-    cols = [c for c in df.keys() if c not in api_column_names_dict.values()]
-    new_cols = cols + list(api_column_names_dict.values())
-    df = df.reindex(columns=new_cols)
+    columns = [column for column in df.keys() if column not in api_column_names_dict.values()]
+    new_columns = columns + list(api_column_names_dict.values())
+    df = df.reindex(columns=new_columns)
     return df
