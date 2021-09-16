@@ -12,7 +12,7 @@ df = parallelizer(
     function=params.api_wrapper.call_api_amazon_rekognition,
     api_client_method_name="detect_text",
     exceptions=params.api_wrapper.API_EXCEPTIONS,
-    **{param: value for param, value in vars(params).items() if param != "minimum_score"}
+    **vars(params)
 )
 
 api_formatter = TextDetectionAPIResponseFormatter(**vars(params))

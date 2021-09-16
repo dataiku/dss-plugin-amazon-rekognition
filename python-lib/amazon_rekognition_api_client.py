@@ -97,7 +97,13 @@ class AmazonRekognitionAPIWrapper:
             if num_objects:
                 request_dict["MaxLabels"] = num_objects
             if minimum_score:
-                request_dict["MinConfidence"] = minimum_score
+                request_dict.update({
+                    "Filters": {
+                        "WordFilter": {
+                            "MinConfidence": minimum_score
+                        }
+                    }
+                })
             response = getattr(self.client, api_client_method_name)(**request_dict)
             if orientation_correction:
                 response["OrientationCorrection"] = detected_orientation
