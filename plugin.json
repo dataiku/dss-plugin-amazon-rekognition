@@ -1,6 +1,6 @@
 {
     "id": "amazon-rekognition",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "meta": {
         "label": "Amazon Rekognition",
         "category": "Computer Vision",
