@@ -141,3 +141,4 @@ dmypy.json
 # pytype static type analyzer
 .pytype/
 .vscode/
+tests/allure_report/
