@@ -56,9 +56,9 @@ class PluginParams:
         input_folder_is_s3: bool = False,
         input_folder_bucket: AnyStr = "",
         input_folder_root_path: AnyStr = "",
-        unsafe_content_category_level: UnsafeContentCategoryLevelEnum = UnsafeContentCategoryLevelEnum.TOP,
-        unsafe_content_categories_top_level: List[UnsafeContentCategoryTopLevelEnum] = [],
-        unsafe_content_categories_second_level: List[UnsafeContentCategorySecondLevelEnum] = [],
+        category_level: UnsafeContentCategoryLevelEnum = UnsafeContentCategoryLevelEnum.TOP,
+        content_categories_top_level: List[UnsafeContentCategoryTopLevelEnum] = [],
+        content_categories_second_level: List[UnsafeContentCategorySecondLevelEnum] = [],
     ):
         store_attr()
 
@@ -134,19 +134,19 @@ class PluginParamsLoader:
             recipe_params["num_objects"] = num_objects
         # Applies to unsafe content moderation
         if self.recipe_id == RecipeID.UNSAFE_CONTENT_MODERATION:
-            recipe_params["unsafe_content_category_level"] = UnsafeContentCategoryLevelEnum[
+            recipe_params["category_level"] = UnsafeContentCategoryLevelEnum[
                 self.recipe_config.get("category_level")
             ]
-            recipe_params["unsafe_content_categories_top_level"] = [
+            recipe_params["content_categories_top_level"] = [
                 UnsafeContentCategoryTopLevelEnum[i] for i in self.recipe_config.get("content_categories_top_level", [])
             ]
-            recipe_params["unsafe_content_categories_second_level"] = [
+            recipe_params["content_categories_second_level"] = [
                 UnsafeContentCategorySecondLevelEnum[i]
                 for i in self.recipe_config.get("content_categories_second_level", [])
             ]
             if (
-                len(recipe_params["unsafe_content_categories_top_level"]) == 0
-                or len(recipe_params["unsafe_content_categories_second_level"]) == 0
+                len(recipe_params["content_categories_top_level"]) == 0
+                or len(recipe_params["content_categories_second_level"]) == 0
             ):
                 raise PluginParamValidationError("Choose at least one unsafe content category")
         logging.info(f"Validated plugin recipe parameters: {recipe_params}")
