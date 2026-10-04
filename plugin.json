@@ -1,6 +1,6 @@
 {
     "id": "amazon-rekognition",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "meta": {
         "label": "Amazon Rekognition",
         "category": "Computer Vision",
@@ -8,7 +8,7 @@
         "author": "Dataiku (Alex COMBESSIE, Joachim ZENTICI)",
         "icon": "icon-amazon-rekognition icon-cloud",
         "licenseInfo": "Apache Software License",
-        "url": "https://www.dataiku.com/product/plugins/amazon-rekognition/",
+        "url": "https://doc.dataiku.com/dss/latest/unstructured-data/image/amazon-rekognition.html",
         "tags": [
             "AWS",
             "Cloud",

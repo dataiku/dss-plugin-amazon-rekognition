@@ -1,5 +1,9 @@
 # Changelog
 
+## [Version 1.0.6](https://github.com/dataiku/dss-plugin-amazon-rekognition/releases/tag/v1.0.6) - Documentation update - 2026-10
+
+- Update documentation links to the DSS reference documentation.
+
 ## [Version 1.0.5](https://github.com/dataiku/dss-plugin-amazon-rekognition/releases/tag/v1.0.5) - Bugfix release - 2025-02-14
 
 - Bump python supported version to 3.7, 3.8, 3.9, 3.10 and 3.11
